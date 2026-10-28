@@ -1,0 +1,6 @@
+build/
+node_modules/
+config.local.json
+bridge.local.json
+*.log
+.DS_Store

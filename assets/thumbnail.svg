@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" role="img" aria-labelledby="title desc">
+  <title id="title">Enhanced Presence</title><desc id="desc">A colorful status card connecting creative apps to Discord.</desc>
+  <defs>
+    <linearGradient id="bg" x2="1" y2="1"><stop stop-color="#111328"/><stop offset="1" stop-color="#222653"/></linearGradient>
+    <linearGradient id="accent" x2="1" y2="1"><stop stop-color="#a3ffdf"/><stop offset=".55" stop-color="#8b8bff"/><stop offset="1" stop-color="#ff8ed6"/></linearGradient>
+    <linearGradient id="card" x2="1" y2="1"><stop stop-color="#30375d"/><stop offset="1" stop-color="#1b203d"/></linearGradient>
+  </defs>
+  <rect width="1200" height="630" rx="32" fill="url(#bg)"/>
+  <circle cx="1015" cy="68" r="248" fill="#8b8bff" opacity=".08"/><circle cx="835" cy="565" r="240" fill="#a3ffdf" opacity=".05"/>
+  <g transform="translate(82 102)">
+    <rect width="64" height="64" rx="19" fill="url(#accent)"/>
+    <path d="M15 36h9l6-14 7 22 5-13h8" fill="none" stroke="#202343" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+    <text x="0" y="145" fill="#f6f5ff" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif" font-size="58" font-weight="700" letter-spacing="-2">Enhanced</text>
+    <text x="0" y="215" fill="#f6f5ff" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif" font-size="58" font-weight="700" letter-spacing="-2">Presence</text>
+    <text x="2" y="266" fill="#b9c2de" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif" font-size="22">A little more you, on Discord.</text>
+    <rect x="0" y="319" width="188" height="39" rx="19" fill="#37365c"/><circle cx="20" cy="338" r="5" fill="#a3ffdf"/>
+    <text x="35" y="345" fill="#e5e7ff" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif" font-size="15" font-weight="600">VENCORD + MACOS</text>
+  </g>
+  <g transform="translate(642 132)">
+    <rect x="14" y="20" width="450" height="302" rx="34" fill="#050717" opacity=".28"/>
+    <rect width="450" height="302" rx="34" fill="url(#card)" stroke="#69749a" stroke-opacity=".35"/>
+    <circle cx="52" cy="54" r="7" fill="#a3ffdf"/><text x="70" y="60" fill="#c0c9e6" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif" font-size="16" font-weight="600">LIVE ACTIVITY</text>
+    <rect x="37" y="100" width="92" height="92" rx="25" fill="url(#accent)"/>
+    <path d="M57 148h15l10-25 10 42 9-25h10" fill="none" stroke="#202343" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+    <text x="151" y="132" fill="#fff" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif" font-size="25" font-weight="700">Your creative app</text>
+    <text x="151" y="165" fill="#c5cbe3" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif" font-size="19">Cooking up something good</text>
+    <rect x="151" y="184" width="88" height="26" rx="13" fill="#354d58"/><text x="165" y="202" fill="#a3ffdf" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif" font-size="13" font-weight="600">01:24:18</text>
+    <path d="M38 244h374" stroke="#6b7596" stroke-opacity=".35"/><text x="39" y="274" fill="#9da9c9" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif" font-size="14">Your apps. Your controls.</text>
+  </g>
+</svg>

@@ -1,0 +1,48 @@
+.ep-manager { color: var(--text-normal); font-family: var(--font-primary); display: flex; flex-direction: column; gap: 12px; }
+.ep-manager h3, .ep-manager p { margin: 0; }
+.ep-live { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px; background: var(--background-secondary); border-radius: 12px; border: 1px solid var(--background-modifier-accent); }
+.ep-live strong { font-size: 16px; }
+.ep-live p { color: var(--text-muted); font-size: 13px; margin-top: 6px; }
+.ep-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--status-positive); margin-right: 8px; }
+.ep-dot.ep-paused { background: var(--text-muted); }
+.ep-heading { display: flex; justify-content: space-between; align-items: center; margin-top: 4px; }
+.ep-heading h3, .ep-editor h3 { font-size: 16px; font-weight: 650; }
+.ep-heading span { font-size: 12px; color: var(--text-muted); }
+.ep-input, .ep-idle select { box-sizing: border-box; width: 100%; background: var(--input-background, var(--background-tertiary)); color: var(--text-normal); border: 1px solid var(--background-modifier-accent); padding: 10px 12px; border-radius: 7px; font: inherit; min-width: 0; }
+.ep-manager button { font: inherit; cursor: pointer; color: var(--text-normal); }
+.ep-manager button:disabled { opacity: .45; cursor: default; }
+.ep-manager button:focus-visible, .ep-input:focus-visible, .ep-idle select:focus-visible { outline: 2px solid var(--brand-500); outline-offset: 2px; }
+.ep-filters, .ep-visibility { display: flex; gap: 6px; flex-wrap: wrap; }
+.ep-filters button, .ep-visibility button { border: 1px solid transparent; background: var(--background-secondary); border-radius: 6px; padding: 7px 12px; font-size: 13px; }
+.ep-filters button[aria-pressed=true], .ep-visibility button[aria-pressed=true] { background: var(--brand-500); color: white; }
+.ep-apps { max-height: 192px; overflow-y: auto; border: 1px solid var(--background-modifier-accent); border-radius: 8px; padding: 4px; }
+.ep-apps button { display: flex; width: 100%; align-items: center; justify-content: space-between; gap: 12px; border: 0; background: transparent; border-radius: 5px; padding: 9px 10px; text-align: left; font-size: 14px; }
+.ep-apps button:hover, .ep-apps button[aria-pressed=true] { background: var(--background-modifier-selected); }
+.ep-badge { font-size: 11px; flex-shrink: 0; color: var(--text-muted); }
+.ep-badge.ep-allowed { color: var(--text-positive, var(--status-positive)); }
+.ep-badge.ep-blocked { color: var(--text-danger); }
+.ep-editor { display: flex; flex-direction: column; gap: 10px; padding: 16px; border-radius: 10px; border: 1px solid var(--background-modifier-accent); }
+.ep-label { display: flex; flex-direction: column; gap: 7px; font-size: 13px; font-weight: 600; }
+.ep-preview { border-left: 3px solid var(--brand-500); padding: 10px 12px; background: var(--background-secondary); border-radius: 0 7px 7px 0; overflow-wrap: anywhere; }
+.ep-preview span { color: var(--text-muted); font-size: 11px; display: block; margin-bottom: 6px; }
+.ep-preview strong { display: block; font-size: 15px; }
+.ep-preview p { font-size: 13px; margin-top: 5px; }
+.ep-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.ep-button { border: 0; border-radius: 6px; padding: 8px 12px; background: var(--background-modifier-selected); font-size: 13px !important; flex-shrink: 0; }
+.ep-button.ep-primary { background: var(--brand-500); color: white; }
+.ep-idle { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; font-size: 13px; }
+.ep-idle select { width: auto; font-size: 13px; }
+.ep-hint, .ep-empty { color: var(--text-muted); font-size: 12px; line-height: 1.5; }
+.ep-empty { padding: 14px; }
+.ep-notice { color: var(--text-positive, var(--status-positive)); font-size: 13px; }
+.ep-notice:empty { display: none; }
+.ep-error { color: var(--text-danger); font-size: 13px; }
+.ep-app-name, .ep-preview-content { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.ep-icon { width: 24px; height: 24px; object-fit: contain; flex-shrink: 0; border-radius: 5px; }
+.ep-initial { display: inline-flex; align-items: center; justify-content: center; background: var(--background-tertiary); font-weight: 600; color: var(--text-muted); }
+.ep-preview-content .ep-icon { width: 48px; height: 48px; border-radius: 9px; }
+.ep-idle input { accent-color: var(--brand-500); width: 18px; height: 18px; }
+.ep-usage { display: flex; gap: 24px; flex-wrap: wrap; margin: 0; }
+.ep-usage dt { font-size: 12px; color: var(--text-muted); }
+.ep-usage dd { font-size: 15px; margin: 4px 0 0; font-variant-numeric: tabular-nums; }
+.ep-idle input:focus-visible { outline: 2px solid var(--brand-500); outline-offset: 2px; }

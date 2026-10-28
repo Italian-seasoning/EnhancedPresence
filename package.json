@@ -1,0 +1,20 @@
+{
+  "name": "enhanced-presence",
+  "version": "0.6.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test tests/*.test.mjs",
+    "preview": "node presence-engine/main.mjs",
+    "pair": "node presence-engine/pair.mjs",
+    "setup": "node presence-engine/setup.mjs",
+    "install:companion": "node presence-engine/install.mjs",
+    "build:detector": "mkdir -p build && swiftc -module-cache-path /tmp/enhanced-presence-swift-cache native/Detector.swift -o build/detector",
+    "build:music": "node vendor/mediaremote-adapter/build.mjs",
+    "install:vencord": "node scripts/install-vencord.mjs",
+    "accessibility": "node scripts/accessibility.mjs"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}
