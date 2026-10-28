@@ -15,7 +15,9 @@
 - **Your apps, your rules.** Shows the app you are using with its icon and elapsed time. Only apps you allow ever appear.
 - **Agent task status.** While Claude Code or Codex works, your timer shows how long the *task* has been running and the status says what is happening: "Squashing bugs" after a failing test, "Running tests", "Writing code", "Shipping changes".
 - **Optional AI wording.** Have Claude Haiku or Codex Luna rephrase that status. Off by default.
-- **Menu bar helper.** Pause or resume sharing from the menu bar without opening Discord.
+- **Settings app.** A real settings window (menu bar icon → Settings…) for apps, task status, schedule, output and power. It works with or without Vencord.
+- **Works without Vencord.** Standalone mode publishes through Discord's local connection, so nothing in Discord is patched. Text only: app icons need the plugin.
+- **Light on battery.** Event-driven detection, a battery saver for Low Power Mode and low battery, and a built-in performance check.
 - **Quiet hours and your own phrases.** Hide your activity overnight and replace the built-in phrases for any app.
 - **Project names.** Off by default, per app.
 - **Music.** Optional Apple Music activity.
@@ -35,7 +37,11 @@ npm run quickstart -- --application-id YOUR_APPLICATION_ID
 
 That one command builds the detector and music adapter, installs the background service, the menu bar helper and the agent hooks, builds Vencord with the plugin at the tested revision, and applies it to Discord. You are asked to accept the Terms of Use first (scripts can pass `--accept-terms`). Add `--restart-discord` to restart Discord for you, or quit and reopen it yourself. Then open **Settings → Vencord → Plugins → EnhancedPresenceUniversal**, review the app list and press **Resume**. Discord's own activity-sharing setting must be on.
 
-A small background agent re-applies the build after Discord updates. Check everything at any time with:
+A small background agent re-applies the build after Discord updates.
+
+**No Vencord?** Run `npm run quickstart -- --standalone --application-id YOUR_APPLICATION_ID` instead. It skips Vencord entirely and Discord is not modified. In the default *Automatic* output mode the companion also switches to standalone by itself whenever the plugin is not connected, and steps aside when it is.
+
+Open the settings window from the menu bar icon, or with `npm run settings`. Check everything, including CPU and memory use, at any time with:
 
 ```sh
 npm run doctor
@@ -77,6 +83,10 @@ In the plugin settings, or in `config.local.json`:
 | `luna` | `codex exec -m luna`, low effort, read-only | Your Codex login. Run `codex exec -m luna "hi"` once to check your install accepts the model name. |
 
 No API keys are read or stored. Neither tool saves a session, scratch files are deleted after each call, and it runs at most once per interval. The model sees only tool categories, the app name and minutes elapsed. If a call fails you keep the fixed phrase.
+
+### Battery and performance
+
+The companion is event-driven and normally sits near 0% CPU. **Battery saver** (Settings → Output and power) stops music polling and AI wording; *Automatic* turns it on in Low Power Mode or at 20% battery or below. If the companion ever uses more than 3% CPU for two minutes it turns the saver on by itself. `npm run doctor` measures CPU and memory of every Enhanced Presence process and flags anything above 2% CPU or 250 MB. Memory and CPU are also shown in the menu bar menu and the settings window.
 
 ### Quiet hours and phrases
 
@@ -134,6 +144,7 @@ To remove Vencord's patch from Discord, reinstall Discord or restore its origina
 |---|---|
 | Nothing shows on Discord | Press **Resume** in the plugin, turn on Discord's activity sharing, and check the app is allowed. |
 | Plugin missing | Rebuild with `--disable-updater`, run `pnpm inject`, restart Discord. |
+| Nothing shows and Vencord is not installed | Use standalone mode (`--standalone`) and make sure Discord's own activity sharing is on. |
 | Anything else | Run `npm run doctor`; it lists what is wrong and how to fix it. Include its output in bug reports. |
 | No task timer | Check the hook is installed (`npm run doctor`), that Codex has trusted it (`/hooks`), and that a terminal, editor, Codex or Claude app is in front. |
 | Project names empty | Grant Accessibility (above) and restart the service. |
@@ -144,7 +155,7 @@ To remove Vencord's patch from Discord, reinstall Discord or restore its origina
 npm test
 ```
 
-Tests run in CI on every push. See [SECURITY.md](SECURITY.md) to report a vulnerability.
+Two checks are opt-in because they need real hardware: `ENHANCED_PRESENCE_NATIVE_SMOKE=1` (idle clock) and `ENHANCED_PRESENCE_PERF=1` (idle CPU and memory limits). Tests run in CI on every push. See [SECURITY.md](SECURITY.md) to report a vulnerability.
 
 ## License
 

@@ -36,7 +36,7 @@ export class DiscordRPC {
     Object.assign(this, { clientId, paths, onStatus, interval, retryDelay });
     this.desired = null; this.ready = false; this.closed = false; this.lastSent = 0;
   }
-  start() { this.connect(0); }
+  start() { this.closed = false; this.retryDelay = 1000; this.connect(0); }
   connect(index) {
     if (this.closed) return;
     const socket = net.createConnection(this.paths[index]);

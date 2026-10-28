@@ -69,7 +69,7 @@ export const blocked = new Set(['com.apple.MobileSMS', 'com.apple.mail', 'com.ap
 export const nameApps = new Set(['com.apple.TextEdit', 'com.apple.FinalCut', 'com.blackmagic-design.DaVinciResolve', 'com.adobe.Photoshop', 'com.adobe.lightroomCC', 'com.adobe.LightroomClassicCC7', 'com.adobe.illustrator', 'com.adobe.InDesign', 'com.adobe.AfterEffects', 'com.adobe.PremierePro']);
 // Apps where a running coding-agent task replaces the generic label.
 export const agentHosts = new Set(['com.apple.Terminal', 'com.googlecode.iterm2', 'com.mitchellh.ghostty', 'com.microsoft.VSCode', 'com.microsoft.VSCodeInsiders', 'com.todesktop.230313mzl4w4u92', 'com.apple.dt.Xcode', 'com.openai.codex', 'com.anthropic.claudefordesktop', 'com.google.antigravity']);
-export const defaultConfig = { enabled: true, idleSeconds: 300, switchDelaySeconds: 120, trackingEnabled: true, music: { enabled: true, sources: ['com.apple.Music'], priority: 'app' }, allowlist: Object.keys(profiles), denylist: [], profiles: {}, assets: {}, resolve: { enabled: false }, disclosure: {}, agent: { enabled: true, showProject: false, ai: { provider: 'off', intervalMinutes: 15 } }, quietHours: { enabled: false, start: '23:00', end: '07:00' }, phrases: {} };
+export const defaultConfig = { enabled: true, idleSeconds: 300, switchDelaySeconds: 120, trackingEnabled: true, music: { enabled: true, sources: ['com.apple.Music'], priority: 'app' }, allowlist: Object.keys(profiles), denylist: [], profiles: {}, assets: {}, resolve: { enabled: false }, disclosure: {}, agent: { enabled: true, showProject: false, ai: { provider: 'off', intervalMinutes: 15 } }, quietHours: { enabled: false, start: '23:00', end: '07:00' }, phrases: {}, output: 'auto', power: { saver: 'auto' } };
 
 export function publicProfile(id, config) {
   if (typeof id !== 'string' || blocked.has(id) || config.denylist.includes(id) || !config.allowlist.includes(id)) return null;
@@ -109,6 +109,9 @@ export function validateConfig(input = {}) {
   if (typeof q.enabled !== 'boolean' || !clock.test(q.start) || !clock.test(q.end)) throw Error('Invalid quiet hours');
   if (!c.phrases || typeof c.phrases !== 'object' || Array.isArray(c.phrases)) throw Error('Invalid phrases');
   for (const [id, list] of Object.entries(c.phrases)) if (!/^[\w.-]{1,200}$/.test(id) || !Array.isArray(list) || list.length < 1 || list.length > 8 || list.some(x => typeof x !== 'string' || x.length < 2 || x.length > 64 || /[\x00-\x1f]/.test(x))) throw Error('Invalid phrases');
+  if (!['auto', 'vencord', 'ipc'].includes(c.output)) throw Error('Invalid output setting');
+  c.power = { ...defaultConfig.power, ...c.power };
+  if (!['auto', 'on', 'off'].includes(c.power.saver)) throw Error('Invalid battery saver setting');
   c.disclosure = Object.fromEntries(Object.entries(c.disclosure).map(([id, options]) => [id, { ...options }]));
   return c;
 }

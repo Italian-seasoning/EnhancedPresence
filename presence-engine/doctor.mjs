@@ -2,6 +2,8 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import { createConnection } from 'node:net';
 import { homedir } from 'node:os';
+import { limits, measure } from './perf.mjs';
+import { readPower } from './power.mjs';
 import { join } from 'node:path';
 
 // Read-only health checks for the whole installation. Never prints keys, settings values or file contents.
@@ -13,7 +15,7 @@ const listening = port => new Promise(resolve => {
   socket.on('error', () => resolve(false)); socket.setTimeout(1000, () => { socket.destroy(); resolve(false); });
 });
 
-export async function diagnose({ home = homedir(), resources = '/Applications/Discord.app/Contents/Resources' } = {}) {
+export async function diagnose({ home = homedir(), resources = '/Applications/Discord.app/Contents/Resources', perf = false } = {}) {
   const root = join(home, 'Library', 'Application Support', 'EnhancedPresence');
   const checks = [];
   const add = (name, ok, fix) => checks.push({ name, ok: Boolean(ok), ...(ok ? {} : { fix }) });
@@ -22,14 +24,25 @@ export async function diagnose({ home = homedir(), resources = '/Applications/Di
   add('Helper app is installed', existsSync(join(home, 'Applications', 'EnhancedPresence Helper.app')), 'npm run install:companion -- --helper');
   add('Claude Code hook is installed', read(join(home, '.claude', 'settings.json')).includes('agent-hook.sh'), 'npm run install:companion');
   if (existsSync(join(home, '.codex'))) add('Codex hook is installed', read(join(home, '.codex', 'hooks.json')).includes('agent-hook.sh'), 'npm run install:companion, then run /hooks in Codex to trust it');
-  add('Discord is patched to load Vencord', read(join(resources, 'app.asar')).includes('Vencord/dist/patcher.js'), 'npm run quickstart, or run pnpm inject in your Vencord checkout');
-  add('Plugin is in the installed Vencord build', read(join(home, 'Library', 'Application Support', 'Vencord', 'dist', 'renderer.js')).includes('EnhancedPresenceUniversal'), 'npm run quickstart');
-  add('Vencord repair agent is running (re-applies after Discord updates)', loaded('app.enhancedpresence.vencord-repair'), 'npm run quickstart');
+  add('Settings app is reachable (menu bar icon > Settings…, or npm run settings)', await listening(43822), 'Restart the service: npm run install:companion');
+  const standalone = /"output":\s*"ipc"/.test(read(join(root, 'config.local.json')));
+  if (!standalone) {
+    add('Discord is patched to load Vencord', read(join(resources, 'app.asar')).includes('Vencord/dist/patcher.js'), 'npm run quickstart, or run pnpm inject in your Vencord checkout. Without Vencord the companion switches to standalone mode by itself.');
+    add('Plugin is in the installed Vencord build', read(join(home, 'Library', 'Application Support', 'Vencord', 'dist', 'renderer.js')).includes('EnhancedPresenceUniversal'), 'npm run quickstart');
+    add('Vencord repair agent is running (re-applies after Discord updates)', loaded('app.enhancedpresence.vencord-repair'), 'npm run quickstart');
+  }
   add('Activity detector is built', existsSync(join(root, 'build', 'detector')), 'npm run build:detector && npm run install:companion');
   const settings = join(root, 'config.local.json');
   add('Settings file is private (mode 600)', existsSync(settings) && (statSync(settings).mode & 0o077) === 0, `chmod 600 "${settings}"`);
   const config = read(settings);
   if (/"provider":\s*"haiku"/.test(config)) add('claude command is available for Haiku wording', has('claude'), 'Install Claude Code or set the provider to off');
   if (/"provider":\s*"luna"/.test(config)) add('codex command is available for Luna wording', has('codex'), 'Install Codex or set the provider to off');
+  if (perf) {
+    // Averaged over a few seconds of cumulative CPU time; a background utility should be nearly idle.
+    const use = await measure(3000), power = await readPower();
+    add(`Companion CPU use is low (${use.cpuPercent.toFixed(2)}% across ${use.processes.length} processes)`, use.processes.length > 0 && use.cpuPercent < limits.cpuPercent, 'Open Settings > Output and power, turn Battery saver on, and report this in an issue');
+    add(`Companion memory is modest (${Math.round(use.rssMB)} MB)`, use.rssMB < limits.rssMB, 'Restart the service: launchctl kickstart -k gui/$(id -u)/app.enhancedpresence.engine');
+    checks.info = `Power: ${power.onBattery ? `battery${power.percent === null ? '' : ` ${power.percent}%`}` : 'plugged in'}${power.lowPower ? ', Low Power Mode' : ''}`;
+  }
   return checks;
 }

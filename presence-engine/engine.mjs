@@ -72,7 +72,7 @@ export class PresenceEngine {
     if (!task) return activity;
     const { categories, ...shown } = task;
     const minutes = Math.round((now / 1000 - shown.startTimestamp) / 60);
-    const details = this.writer.get(this.config.agent.ai, { phrase: shown.details, app: activity.appName, minutes, categories: categories.slice(-6) }, now) ?? shown.details;
+    const details = this.writer.get(this.powerSaver ? { provider: 'off' } : this.config.agent.ai, { phrase: shown.details, app: activity.appName, minutes, categories: categories.slice(-6) }, now) ?? shown.details;
     return { ...activity, ...shown, details };
   }
   async baseUpdate(snapshot, now = Date.now()) {

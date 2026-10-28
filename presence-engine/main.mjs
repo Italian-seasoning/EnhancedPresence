@@ -11,6 +11,9 @@ import { DiscordRPC } from './rpc.mjs';
 import { PresenceBridge } from './websocket.mjs';
 import { UsageTracker } from './usage.mjs';
 import { createMusicProvider, selectMusicActivity } from './music.mjs';
+import { OutputController } from './output.mjs';
+import { readPower, saverActive } from './power.mjs';
+import { startSettingsServer } from './settings-server.mjs';
 
 const args = process.argv.slice(2);
 function option(key) { const i = args.indexOf(key); return i < 0 ? undefined : args[i + 1]; }
@@ -26,9 +29,12 @@ const root = configPath ? dirname(configPath) : null;
 let usage = null, usageError;
 try { if (root && args.includes('--detect')) usage = new UsageTracker({ root }); }
 catch { usageError = 'App time data could not be loaded. Existing totals were preserved.'; }
-const rpc = publish ? new DiscordRPC(option('--application-id')) : null;
-const bridge = useVencord ? new PresenceBridge(JSON.parse(readFileSync(option('--bridge-config'), 'utf8')).token) : null;
+const bridgeConfig = useVencord ? JSON.parse(readFileSync(option('--bridge-config'), 'utf8')) : null;
+// With a saved application ID the engine can publish through Discord's local IPC when the Vencord plugin is not connected.
+const rpc = publish ? new DiscordRPC(option('--application-id')) : (/^\d{17,20}$/.test(bridgeConfig?.applicationId ?? '') ? new DiscordRPC(bridgeConfig.applicationId) : null);
+const bridge = useVencord ? new PresenceBridge(bridgeConfig.token, option('--bridge-port') ? { port: Number(option('--bridge-port')) } : {}) : null;
 if (bridge) await bridge.start();
+const output = useVencord ? new OutputController({ bridge, rpc, mode: () => engine.config.output }) : null;
 let last = undefined, lastInput = Date.now(), busy = false, queued = undefined, stopping = false;
 let latest, child, source, deadline, configWatcher, reloadTimer, statusKey, lastStatus = 0;
 let musicStatus = { available: false };
@@ -54,8 +60,8 @@ function track(action, ...values) {
 function saveStatus(force = false) {
   if (!root || !args.includes('--detect')) return;
   const pending = engine.pending ? { appId: engine.pending.id, appName: engine.config.profiles[engine.pending.id]?.name || profiles[engine.pending.id]?.[0] || 'App', since: engine.pending.start, dueAt: engine.pending.dueAt } : null;
-  const state = { pending, music: musicStatus, usage: track('summary') || {}, ...(usageError ? { usageError } : {}) };
-  const key = JSON.stringify({ pending, music: musicStatus });
+  const state = { pending, music: musicStatus, perf: { ...perf, saver, selfProtect, source: output?.source ?? 'none', ...(power ?? {}) }, usage: track('summary') || {}, ...(usageError ? { usageError } : {}) };
+  const key = JSON.stringify({ pending, music: musicStatus, saver, source: output?.source });
   if (!force && key === statusKey && Date.now() - lastStatus < 60000) return;
   const path = join(root, 'status.local.json'), temp = `${path}.${process.pid}.tmp`;
   try {
@@ -69,7 +75,8 @@ function emit(activity) {
   const serialized = JSON.stringify(message(activity));
   if (serialized === last) return;
   if (!args.includes('--quiet')) console.log(serialized);
-  last = serialized; rpc?.update(activity); bridge?.update(activity);
+  last = serialized;
+  if (output) output.update(activity); else { rpc?.update(activity); bridge?.update(activity); }
 }
 async function receive(snapshot, fromDetector = true) {
   if (stopping) return;
@@ -93,6 +100,22 @@ async function receive(snapshot, fromDetector = true) {
     }
   } finally { busy = false; }
 }
+// Battery saver: no music polling and no AI wording while on low power. Also entered if this process uses too much CPU.
+let power = null, saver = false, selfProtect = false, perf = { cpuPercent: 0, rssMB: 0 }, busyMinutes = 0, lastCpu = process.cpuUsage(), lastSample = Date.now();
+function applyMusic() {
+  if (args.includes('--detect') && engine.config.enabled && engine.config.music.enabled && !saver) music.start(); else music.stop();
+}
+async function sample() {
+  power = await readPower();
+  const now = Date.now(), cpu = process.cpuUsage(lastCpu), seconds = (now - lastSample) / 1000;
+  perf = { cpuPercent: Math.round((cpu.user + cpu.system) / 1e4 / seconds) / 100, rssMB: Math.round(process.memoryUsage().rss / 1048576) };
+  lastCpu = process.cpuUsage(); lastSample = now;
+  busyMinutes = perf.cpuPercent > 3 ? busyMinutes + 1 : 0;
+  if (busyMinutes >= 2) selfProtect = true;
+  const next = saverActive(engine.config.power.saver, power) || selfProtect;
+  if (next !== saver) { saver = next; engine.powerSaver = saver; applyMusic(); saveStatus(true); }
+}
+const sampler = setInterval(() => void sample(), 60000);
 function reloadConfig() {
   try {
     if (configPath) {
@@ -101,12 +124,13 @@ function reloadConfig() {
     }
     engine.config = validateConfig(configPath ? JSON.parse(readFileSync(configPath, 'utf8')) : {});
   } catch { engine.config = validateConfig({ enabled: false }); }
-  if (args.includes('--detect') && engine.config.enabled && engine.config.music.enabled) music.start();
-  else music.stop();
+  applyMusic();
   child?.kill('SIGUSR1');
   if (latest !== undefined) void receive(currentSnapshot(), false);
 }
 reloadConfig();
+void sample();
+const settings = args.includes('--settings') && root ? await startSettingsServer({ root, ...(option('--settings-port') ? { port: Number(option('--settings-port')) } : {}) }).catch(() => null) : null;
 if (configPath) configWatcher = watch(dirname(configPath), (_event, file) => {
   if (file && file.toString() !== basename(configPath)) return;
   clearTimeout(reloadTimer); reloadTimer = setTimeout(reloadConfig, 30);
@@ -128,16 +152,16 @@ lines.on('line', line => {
   try { if (line.length > 4096) throw Error(); receive(JSON.parse(line)); }
   catch { receive({}); }
 });
-rpc?.start();
+if (publish) rpc.start();
 const watchdog = setInterval(() => {
   if (Date.now() - lastInput >= 45000) { engine.session = null; engine.pending = null; track('suspend', lastInput); emit(null); }
-  track('flush'); saveStatus();
+  track('flush'); output?.update(); saveStatus();
 }, 15000);
 async function shutdown(code = 0) {
   if (stopping) return;
   stopping = true; clearInterval(watchdog); clearTimeout(deadline); clearTimeout(reloadTimer); configWatcher?.close(); music.stop(); lines.close(); child?.kill();
   track('suspend'); saveStatus(true);
-  emit(null); await rpc?.stop(); await bridge?.stop(); process.exit(code);
+  emit(null); clearInterval(sampler); settings?.close(); if (output) await output.stop(); else { await rpc?.stop(); await bridge?.stop(); } process.exit(code);
 }
 process.on('SIGINT', () => shutdown());
 process.on('SIGTERM', () => shutdown());

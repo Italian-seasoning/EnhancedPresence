@@ -60,6 +60,13 @@ export function readRuntimeStatus(root, now = Date.now()) {
     if (!validText(raw.music.error)) throw Error('Invalid music status');
     result.music.error = raw.music.error;
   }
+  if (raw.perf && typeof raw.perf === 'object') {
+    const p = raw.perf, num = x => Number.isFinite(x) && x >= 0 && x < 1e6;
+    if (num(p.cpuPercent) && num(p.rssMB)) result.perf = {
+      cpuPercent: p.cpuPercent, rssMB: p.rssMB, saver: p.saver === true, selfProtect: p.selfProtect === true, onBattery: p.onBattery === true, lowPower: p.lowPower === true,
+      percent: Number.isInteger(p.percent) && p.percent >= 0 && p.percent <= 100 ? p.percent : null, source: ['vencord', 'ipc', 'none'].includes(p.source) ? p.source : 'none'
+    };
+  }
   if (raw.usageError !== undefined) {
     if (!validText(raw.usageError)) throw Error('Invalid usage status');
     result.usageError = raw.usageError;
@@ -92,6 +99,7 @@ export function readControls(root) {
   return {
     enabled: c.enabled, idleSeconds: c.idleSeconds, namesAvailable, agent: { provider: c.agent.ai.provider, intervalMinutes: c.agent.ai.intervalMinutes, showProject: c.agent.showProject },
     switchDelaySeconds: c.switchDelaySeconds, trackingEnabled: c.trackingEnabled, music: c.music,
+    quietHours: c.quietHours, output: c.output, powerSaver: c.power.saver,
     usage, ...(usageError ? { usageError } : {}),
     apps: ids.map(id => {
       const base = profiles[id];
@@ -154,4 +162,14 @@ export function updateAgent(root, input) {
   const c = load(root);
   c.agent = { ...c.agent, showProject: input.showProject, ai: { ...c.agent.ai, provider: input.provider, intervalMinutes: input.intervalMinutes } };
   save(root, c); return readControls(root);
+}
+export function updateGeneral(root, input) {
+  const keys = ['quietHours', 'output', 'powerSaver'];
+  if (!input || typeof input !== 'object' || Array.isArray(input) || !Object.keys(input).length || Object.keys(input).some(key => !keys.includes(key))) throw Error('Invalid setting');
+  const c = load(root);
+  if (input.quietHours !== undefined) c.quietHours = { ...c.quietHours, ...input.quietHours };
+  if (input.output !== undefined) c.output = input.output;
+  if (input.powerSaver !== undefined) c.power = { ...c.power, saver: input.powerSaver };
+  save(root, c); // validation rejects bad values before anything is written
+  return readControls(root);
 }

@@ -7,6 +7,7 @@ import { createInterface } from 'node:readline/promises';
 import { installPlugin } from './install-vencord.mjs';
 import { deploy } from './vencord-deploy.mjs';
 
+// --standalone skips Vencord entirely and publishes through Discord's local connection (text only, nothing patched).
 // One command: npm run quickstart -- --application-id ID [--vencord DIR] [--accept-terms] [--restart-discord]
 // Builds everything, installs the companion, helper app and agent hooks, builds Vencord with the plugin,
 // and applies it to Discord without the interactive Vencord installer.
@@ -41,8 +42,12 @@ run('npm', ['run', 'build:detector']);
 run('npm', ['run', 'build:music']);
 
 step('Installing the companion, helper app and agent hooks');
-run('node', ['presence-engine/install.mjs', ...(applicationId ? [applicationId] : []), '--helper', '--accept-terms', ...(start ? [] : ['--no-start'])]);
+run('node', ['presence-engine/install.mjs', ...(applicationId ? [applicationId] : []), '--helper', '--accept-terms', ...(args.includes('--standalone') ? ['--standalone'] : []), ...(start ? [] : ['--no-start'])]);
 
+if (args.includes('--standalone')) {
+  console.log('\nStandalone mode: Discord is not modified. Open Discord, then use the menu bar icon > Settings… and press Resume sharing.');
+  process.exit(0);
+}
 step('Preparing Vencord');
 const checkout = option('--vencord') ?? join(homedir(), 'Library', 'Application Support', 'EnhancedPresence', 'vencord-src');
 if (!existsSync(join(checkout, 'package.json'))) {

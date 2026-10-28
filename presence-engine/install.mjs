@@ -32,7 +32,7 @@ const bridgePath = join(root, 'bridge.local.json');
 for (const file of [configPath, bridgePath]) {
   if (existsSync(file) && (!lstatSync(file).isFile() || lstatSync(file).isSymbolicLink())) throw Error('Settings must be regular local files.');
 }
-const config = existsSync(configPath) ? validateConfig(JSON.parse(readFileSync(configPath, 'utf8'))) : validateConfig({ enabled: false });
+const config = existsSync(configPath) ? validateConfig(JSON.parse(readFileSync(configPath, 'utf8'))) : validateConfig({ enabled: false, ...(flags.includes('--standalone') ? { output: 'ipc' } : {}) });
 const bridge = existsSync(bridgePath) ? JSON.parse(readFileSync(bridgePath, 'utf8')) : { token: randomBytes(32).toString('hex') };
 if (!/^[a-f0-9]{64}$/.test(bridge.token)) throw Error('Existing pairing configuration is invalid; it was preserved.');
 const previousApplicationId = bridge.applicationId;
@@ -69,14 +69,14 @@ if (!existsSync(bridgePath) || previousApplicationId !== applicationId) writeFil
 chmodSync(configPath, 0o600); chmodSync(bridgePath, 0o600);
 mkdirSync(agents, { recursive: true });
 const xml = value => value.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;');
-const args = [node, join(root, 'presence-engine', 'main.mjs'), '--detect', '--quiet', '--config', configPath, '--vencord', '--activation-approved', '--bridge-config', bridgePath];
+const args = [node, join(root, 'presence-engine', 'main.mjs'), '--detect', '--quiet', '--config', configPath, '--vencord', '--activation-approved', '--bridge-config', bridgePath, '--settings'];
 if (helper) {
   // A named app bundle gives the engine a stable identity in macOS privacy lists and Login Items.
   const app = join(homedir(), 'Applications', 'EnhancedPresence Helper.app'), exe = join(app, 'Contents', 'MacOS', 'EnhancedPresenceHelper');
   mkdirSync(join(app, 'Contents', 'MacOS'), { recursive: true });
   mkdirSync(join(app, 'Contents', 'Resources'), { recursive: true });
   cpSync(join(source, 'assets', 'AppIcon.icns'), join(app, 'Contents', 'Resources', 'AppIcon.icns'));
-  writeFileSync(join(app, 'Contents', 'Info.plist'), `<?xml version="1.0" encoding="UTF-8"?>\n<plist version="1.0"><dict><key>CFBundleIdentifier</key><string>app.enhancedpresence.helper</string><key>CFBundleName</key><string>EnhancedPresence Helper</string><key>CFBundleIconFile</key><string>AppIcon</string><key>CFBundleExecutable</key><string>EnhancedPresenceHelper</string><key>CFBundlePackageType</key><string>APPL</string><key>LSUIElement</key><true/></dict></plist>\n`);
+  writeFileSync(join(app, 'Contents', 'Info.plist'), `<?xml version="1.0" encoding="UTF-8"?>\n<plist version="1.0"><dict><key>CFBundleIdentifier</key><string>app.enhancedpresence.helper</string><key>CFBundleName</key><string>EnhancedPresence Helper</string><key>CFBundleIconFile</key><string>AppIcon</string><key>CFBundleExecutable</key><string>EnhancedPresenceHelper</string><key>CFBundlePackageType</key><string>APPL</string><key>LSUIElement</key><true/><key>NSAppTransportSecurity</key><dict><key>NSAllowsLocalNetworking</key><true/></dict></dict></plist>\n`);
   // Menu bar app that also runs the engine, so macOS privacy prompts name this app. Falls back to a plain launcher.
   let menuBar = true;
   try { execFileSync('swiftc', ['-module-cache-path', join(tmpdir(), 'enhanced-presence-swift-cache'), join(source, 'native', 'Helper.swift'), '-o', exe], { stdio: 'ignore' }); }

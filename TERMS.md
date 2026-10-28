@@ -16,6 +16,8 @@ The software is a custom Vencord plugin. Modifying the Discord client is against
 
 The software works alongside [Vencord](https://vencord.dev), a separate project with its own license and rules, and it patches Discord's installed app so that Vencord can load. Discord updates can overwrite or break that patch. Using the software with a Discord application ID also means you follow Discord's [Developer Terms](https://discord.com/developers/docs/policies-and-agreements/developer-terms-of-service) and [Developer Policy](https://discord.com/developers/docs/policies-and-agreements/developer-policy) for that application.
 
+In standalone mode the software does not modify Discord at all: it only uses the local connection Discord provides for Rich Presence, so the client-modification risk above does not apply to that mode, although the other terms still do.
+
 The plugin never asks for, reads or stores your Discord password, account token or bot token. If anything asks you for one, do not provide it.
 
 ## 3. Your responsibility for what you share

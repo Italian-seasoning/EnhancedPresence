@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="ep-token" content="__EP_TOKEN__">
+<title>Enhanced Presence Settings</title>
+<style>
+:root {
+  color-scheme: light dark;
+  --bg: #f5f5f7; --panel: #ffffff; --line: #e2e2e8; --text: #1d1d22; --muted: #6a6a76;
+  --accent: #5b4bdb; --accent-text: #ffffff; --soft: #eeecfb; --good: #1f9d55; --warn: #c27c0e; --bad: #cf3b3b;
+  --radius: 12px; --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #151519; --panel: #1f1f25; --line: #31313a; --text: #f2f2f6; --muted: #9a9aa8; --accent: #8b7dff; --accent-text: #15151a; --soft: #2a2745; --good: #4cc27f; --warn: #e0a43c; --bad: #ef6b6b; }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.45 var(--font); }
+button, input, select { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.shell { display: grid; grid-template-columns: 210px 1fr; min-height: 100vh; }
+nav { padding: 20px 12px; border-right: 1px solid var(--line); position: sticky; top: 0; height: 100vh; }
+nav h1 { font-size: 15px; margin: 0 8px 16px; }
+nav button { display: block; width: 100%; text-align: left; border: 0; background: none; padding: 8px 10px; border-radius: 8px; cursor: pointer; color: var(--muted); }
+nav button[aria-current="page"] { background: var(--soft); color: var(--text); font-weight: 600; }
+nav button:hover { color: var(--text); }
+main { padding: 24px 28px 48px; max-width: 920px; }
+header.top { display: flex; align-items: center; gap: 12px; justify-content: space-between; margin-bottom: 20px; }
+.pill { display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: 999px; background: var(--panel); border: 1px solid var(--line); }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--good); }
+.dot.off { background: var(--muted); } .dot.warn { background: var(--warn); }
+h2 { font-size: 20px; margin: 0 0 4px; } .sub { color: var(--muted); margin: 0 0 20px; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; margin-bottom: 16px; }
+.card h3 { font-size: 14px; margin: 0 0 12px; }
+.row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 10px 0; border-top: 1px solid var(--line); }
+.row:first-of-type { border-top: 0; padding-top: 0; } .row:last-child { padding-bottom: 0; }
+.row .label { font-weight: 500; } .row .hint { color: var(--muted); font-size: 13px; margin-top: 2px; max-width: 46ch; }
+button.btn { min-height: 34px; padding: 0 14px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); cursor: pointer; }
+button.btn:hover { border-color: var(--accent); }
+button.primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); font-weight: 600; }
+button:disabled { opacity: .5; cursor: default; }
+input[type=text], input[type=search], select, input[type=time] { min-height: 34px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); width: 100%; }
+select, input[type=time] { width: auto; }
+.switch { position: relative; width: 42px; height: 24px; flex: none; }
+.switch input { appearance: none; position: absolute; inset: 0; margin: 0; border-radius: 999px; background: var(--line); cursor: pointer; transition: background .15s; }
+.switch input:checked { background: var(--accent); }
+.switch input::after { content: ""; position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 50%; background: #fff; transition: transform .15s; }
+.switch input:checked::after { transform: translateX(18px); }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.seg button { border: 0; background: none; padding: 6px 12px; cursor: pointer; color: var(--muted); }
+.seg button[aria-pressed="true"] { background: var(--soft); color: var(--text); font-weight: 600; }
+.seg button:disabled { cursor: not-allowed; }
+.apps { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start; }
+.list { max-height: 460px; overflow: auto; border: 1px solid var(--line); border-radius: 10px; }
+.item { display: flex; align-items: center; gap: 10px; width: 100%; padding: 9px 12px; border: 0; border-bottom: 1px solid var(--line); background: none; text-align: left; cursor: pointer; }
+.item:last-child { border-bottom: 0; } .item[aria-pressed="true"] { background: var(--soft); }
+.avatar { width: 28px; height: 28px; border-radius: 7px; background: var(--soft); display: grid; place-items: center; font-weight: 700; color: var(--accent); flex: none; }
+.item small { margin-left: auto; color: var(--muted); }
+.tag-allowed { color: var(--good); } .tag-blocked { color: var(--bad); }
+.filters { display: flex; gap: 6px; margin: 10px 0; flex-wrap: wrap; }
+.stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.stat { background: var(--bg); border-radius: 10px; padding: 12px; } .stat b { display: block; font-size: 20px; } .stat span { color: var(--muted); font-size: 12px; }
+.badge { padding: 2px 8px; border-radius: 999px; font-size: 12px; background: var(--soft); }
+.toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: var(--text); color: var(--bg); padding: 8px 16px; border-radius: 999px; opacity: 0; transition: opacity .2s; pointer-events: none; }
+.toast.show { opacity: 1; } .toast.error { background: var(--bad); color: #fff; }
+.field { display: grid; gap: 6px; margin-bottom: 12px; } .field label { font-weight: 500; }
+@media (max-width: 760px) {
+  .shell { grid-template-columns: 1fr; } nav { position: static; height: auto; display: flex; gap: 4px; overflow-x: auto; border-right: 0; border-bottom: 1px solid var(--line); padding: 10px; }
+  nav h1 { display: none; } nav button { width: auto; white-space: nowrap; } main { padding: 16px; } .apps { grid-template-columns: 1fr; } .stats { grid-template-columns: 1fr; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<div class="shell">
+  <nav aria-label="Settings sections"><h1>Enhanced Presence</h1><div id="nav"></div></nav>
+  <main>
+    <header class="top"><div class="pill" id="status" role="status"></div><button class="btn primary" id="pause"></button></header>
+    <section id="view"></section>
+  </main>
+</div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<script>
+const token = document.querySelector('meta[name=ep-token]').content;
+const pages = [['apps', 'Apps'], ['agent', 'Task status'], ['schedule', 'Schedule'], ['system', 'Output and power'], ['about', 'About']];
+let state = null, page = 'apps', selected = null, filter = 'all', query = '', draft = {};
+const $ = id => document.getElementById(id);
+const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+
+async function call(path, body) {
+  const response = await fetch(path, { method: body ? 'POST' : 'GET', headers: { 'x-ep-token': token, ...(body ? { 'content-type': 'application/json' } : {}) }, body: body ? JSON.stringify(body) : undefined });
+  const data = await response.json();
+  if (!response.ok) throw Error(data.error || 'Request failed');
+  return data;
+}
+function toast(text, error = false) {
+  const el = $('toast'); el.textContent = text; el.className = `toast show${error ? ' error' : ''}`;
+  clearTimeout(toast.t); toast.t = setTimeout(() => el.className = 'toast', 2400);
+}
+async function save(name, body, message = 'Saved') {
+  try { state = await call(`/api/${name}`, body); toast(message); render(); } catch (error) { toast(error.message, true); render(); }
+}
+async function refresh(first = false) { try { state = await call('/api/state'); render(first); } catch { $('status').innerHTML = '<span class="dot off"></span>Companion not reachable'; } }
+
+function header() {
+  const c = state.controls, r = state.runtime, perf = r?.perf;
+  const live = c.enabled && !(r?.stale);
+  const source = perf?.source === 'vencord' ? 'via Vencord' : perf?.source === 'ipc' ? 'standalone' : 'waiting for Discord';
+  $('status').innerHTML = `<span class="dot ${c.enabled ? (live ? '' : 'warn') : 'off'}"></span>${c.enabled ? (live ? `Sharing, ${source}` : 'Companion not responding') : 'Sharing paused'}`;
+  $('pause').textContent = c.enabled ? 'Pause sharing' : 'Resume sharing';
+  $('pause').className = c.enabled ? 'btn' : 'btn primary';
+}
+function row(label, hint, control) { return `<div class="row"><div><div class="label">${label}</div>${hint ? `<div class="hint">${hint}</div>` : ''}</div>${control}</div>`; }
+const toggle = (id, on, label) => `<span class="switch"><input type="checkbox" id="${id}" aria-label="${esc(label)}" ${on ? 'checked' : ''}></span>`;
+const options = (list, value) => list.map(([v, l]) => `<option value="${v}" ${String(v) === String(value) ? 'selected' : ''}>${l}</option>`).join('');
+
+const views = {
+  apps() {
+    const apps = state.controls.apps.filter(a => (filter === 'all' || a.visibility === filter) && `${a.name} ${a.details}`.toLowerCase().includes(query.toLowerCase()));
+    const app = state.controls.apps.find(a => a.id === selected) ?? apps.find(a => a.visibility === 'allowed') ?? apps[0];
+    if (app && selected !== app.id) { selected = app.id; draft = { name: app.name, details: app.details }; }
+    const allowed = state.controls.apps.filter(a => a.visibility === 'allowed').length;
+    return `<h2>Apps</h2><p class="sub">${allowed} apps may appear on your profile. Everything else stays private.</p>
+    <div class="apps"><div>
+      <input type="search" id="query" placeholder="Search apps" aria-label="Search apps" value="${esc(query)}">
+      <div class="filters" role="group" aria-label="Filter">${['all', 'allowed', 'hidden', 'blocked'].map(f => `<button class="btn" data-filter="${f}" aria-pressed="${filter === f}">${f[0].toUpperCase() + f.slice(1)}</button>`).join('')}</div>
+      <div class="list" role="list">${apps.map(a => `<button class="item" role="listitem" data-app="${esc(a.id)}" aria-pressed="${a.id === selected}"><span class="avatar" aria-hidden="true">${esc(a.name[0])}</span><span>${esc(a.name)}</span><small class="tag-${a.visibility}">${a.visibility}</small></button>`).join('') || '<p class="sub" style="padding:12px">No apps match.</p>'}</div>
+    </div>
+    <div class="card">${app ? `<h3>${esc(app.name)}</h3>
+      <div class="seg" role="group" aria-label="Visibility">${[['allowed', 'Allow'], ['hidden', 'Hide'], ['blocked', 'Block']].map(([v, l]) => `<button data-vis="${v}" aria-pressed="${app.visibility === v}" ${app.protected || (!app.editable && v === 'allowed') ? 'disabled' : ''}>${l}</button>`).join('')}</div>
+      <p class="hint" style="color:var(--muted);margin:10px 0">${app.protected ? 'This app always stays private.' : app.visibility === 'allowed' ? 'Visible while you use this app.' : app.visibility === 'blocked' ? 'Blocked, even if allowed elsewhere.' : 'Hidden until you allow it.'}</p>
+      ${app.editable && !app.protected ? `<div class="field"><label for="name">Public name</label><input type="text" id="name" maxlength="128" value="${esc(draft.name)}"></div>
+      <div class="field"><label for="details">Activity text</label><input type="text" id="details" maxlength="128" value="${esc(draft.details)}"></div>
+      ${app.supportsName ? row('Show project or document name', 'Anyone who can see your activity will see it.', toggle('showName', app.showName, 'Show names')) : ''}
+      <div style="display:flex;gap:8px;margin-top:12px"><button class="btn primary" id="saveText">Save text</button><button class="btn" id="reset">Restore default</button></div>` : ''}` : '<p class="sub">Select an app.</p>'}</div></div>`;
+  },
+  agent() {
+    const a = state.controls.agent;
+    return `<h2>Task status</h2><p class="sub">While Claude Code or Codex works, your timer shows how long the task has run and the status describes it.</p>
+    <div class="card">${row('AI wording', 'Rephrases the status using your own Claude or ChatGPT subscription. The model sees only tool categories, the app name and minutes elapsed.', `<select id="provider" aria-label="AI wording">${options([['off', 'Off (fixed phrases)'], ['haiku', 'Claude Haiku'], ['luna', 'Codex Luna']], a.provider)}</select>`)}
+    ${a.provider !== 'off' ? row('Refresh at most every', 'Keeps usage tiny.', `<select id="interval" aria-label="Refresh interval">${options([[15, '15 minutes'], [30, '30 minutes'], [60, '1 hour'], [120, '2 hours']], a.intervalMinutes)}</select>`) : ''}
+    ${row('Show project folder name', 'Off by default.', toggle('showProject', a.showProject, 'Show project folder name'))}</div>`;
+  },
+  schedule() {
+    const c = state.controls, q = c.quietHours;
+    return `<h2>Schedule</h2><p class="sub">When your activity is shown and how quickly it changes.</p>
+    <div class="card"><h3>Quiet hours</h3>${row('Hide activity during quiet hours', 'Can wrap past midnight.', toggle('quiet', q.enabled, 'Quiet hours'))}
+    ${row('From', '', `<input type="time" id="qstart" value="${esc(q.start)}" aria-label="Quiet hours start">`)}${row('Until', '', `<input type="time" id="qend" value="${esc(q.end)}" aria-label="Quiet hours end">`)}</div>
+    <div class="card"><h3>Timing</h3>${row('Hide after no input', 'Clears your activity when you step away.', `<select id="idle" aria-label="Idle timeout">${options([[300, '5 minutes'], [600, '10 minutes'], [900, '15 minutes'], [1800, '30 minutes']], c.idleSeconds)}</select>`)}
+    ${row('Wait before switching apps', 'Stops flicker when you glance at another app.', `<select id="delay" aria-label="Switch delay">${options([[0, 'No delay'], [30, '30 seconds'], [60, '1 minute'], [120, '2 minutes'], [300, '5 minutes']], c.switchDelaySeconds)}</select>`)}</div>
+    <div class="card"><h3>Music</h3>${row('Show Apple Music', 'Uses a private macOS interface that can change.', toggle('music', c.music.enabled, 'Show Apple Music'))}</div>`;
+  },
+  system() {
+    const c = state.controls, p = state.runtime?.perf;
+    const healthy = p && p.cpuPercent < 2 && p.rssMB < 250;
+    return `<h2>Output and power</h2><p class="sub">Where activity is published, and how lightly the companion runs.</p>
+    <div class="card"><h3>Output</h3>${row('Publish through', 'Automatic uses the Vencord plugin when it is connected and Discord’s local connection otherwise, so it also works without Vencord. Standalone shows text only; app icons need the plugin.', `<select id="output" aria-label="Output">${options([['auto', 'Automatic'], ['vencord', 'Vencord plugin only'], ['ipc', 'Standalone only']], c.output)}</select>`)}</div>
+    <div class="card"><h3>Battery saver</h3>${row('Save power', 'Stops music polling and AI wording. Automatic turns it on in Low Power Mode or at 20% battery.', `<select id="saver" aria-label="Battery saver">${options([['auto', 'Automatic'], ['on', 'Always'], ['off', 'Never']], c.powerSaver)}</select>`)}</div>
+    <div class="card"><h3>Performance <span class="badge">${p ? (healthy ? 'Healthy' : 'Check') : 'No data yet'}</span></h3>
+    ${p ? `<div class="stats"><div class="stat"><b>${p.cpuPercent.toFixed(1)}%</b><span>CPU (engine, last minute)</span></div><div class="stat"><b>${Math.round(p.rssMB)} MB</b><span>Memory</span></div><div class="stat"><b>${p.onBattery ? (p.percent ?? '?') + '%' : 'Plugged in'}</b><span>${p.onBattery ? 'On battery' : 'Power'}${p.lowPower ? ', Low Power Mode' : ''}</span></div></div>
+    <p class="sub" style="margin:12px 0 0">${p.saver ? (p.selfProtect ? 'Battery saver is on because the companion used more CPU than expected. Restart it to reset.' : 'Battery saver is active.') : 'Battery saver is off.'}</p>` : '<p class="sub">Waiting for the companion to report.</p>'}</div>`;
+  },
+  about() {
+    return `<h2>About</h2><p class="sub">Enhanced Presence is an independent project, not made or endorsed by Discord or Vencord.</p>
+    <div class="card"><p>Modifying the Discord client through Vencord is against Discord’s Terms of Service, and the software is provided without warranty. Standalone mode does not modify Discord. You use Enhanced Presence at your own risk; the Terms of Use in the project repository apply.</p>
+    <p>Everything runs on your Mac. There is no account, analytics or telemetry. Settings live in <code>~/Library/Application Support/EnhancedPresence</code>.</p></div>`;
+  }
+};
+
+function render(rebuild = true) {
+  if (!state) return;
+  header();
+  $('nav').innerHTML = pages.map(([id, label]) => `<button data-page="${id}" ${id === page ? 'aria-current="page"' : ''}>${label}</button>`).join('');
+  if (rebuild) { $('view').innerHTML = views[page](); wire(); }
+  else if (page === 'system') { $('view').innerHTML = views.system(); wire(); }
+}
+const bind = (id, event, fn) => { const el = $(id); if (el) el.addEventListener(event, fn); };
+function wire() {
+  document.querySelectorAll('[data-filter]').forEach(b => b.onclick = () => { filter = b.dataset.filter; render(); });
+  document.querySelectorAll('[data-app]').forEach(b => b.onclick = () => { selected = b.dataset.app; draft = {}; const a = state.controls.apps.find(x => x.id === selected); draft = { name: a.name, details: a.details }; render(); });
+  document.querySelectorAll('[data-vis]').forEach(b => b.onclick = () => save('app', { id: selected, visibility: b.dataset.vis }));
+  bind('query', 'input', e => { query = e.target.value; render(); const q = $('query'); q.focus(); q.setSelectionRange(q.value.length, q.value.length); });
+  bind('name', 'input', e => draft.name = e.target.value); bind('details', 'input', e => draft.details = e.target.value);
+  bind('saveText', 'click', () => { const a = state.controls.apps.find(x => x.id === selected); save('app', { id: selected, visibility: a.visibility, name: draft.name.trim(), details: draft.details.trim() }, 'Text saved'); });
+  bind('reset', 'click', () => { const a = state.controls.apps.find(x => x.id === selected); selected = null; save('app', { id: a.id, visibility: a.visibility, reset: true }, 'Default restored'); selected = a.id; });
+  bind('showName', 'change', e => { const a = state.controls.apps.find(x => x.id === selected); save('app', { id: selected, visibility: a.visibility, showName: e.target.checked }); });
+  const agent = patch => save('agent', { ...state.controls.agent, ...patch });
+  bind('provider', 'change', e => agent({ provider: e.target.value })); bind('interval', 'change', e => agent({ intervalMinutes: Number(e.target.value) })); bind('showProject', 'change', e => agent({ showProject: e.target.checked }));
+  bind('quiet', 'change', e => save('general', { quietHours: { enabled: e.target.checked } })); bind('qstart', 'change', e => e.target.value && save('general', { quietHours: { start: e.target.value } })); bind('qend', 'change', e => e.target.value && save('general', { quietHours: { end: e.target.value } }));
+  bind('idle', 'change', e => save('idle', { seconds: Number(e.target.value) })); bind('delay', 'change', e => save('behavior', { switchDelaySeconds: Number(e.target.value) }));
+  bind('music', 'change', e => save('behavior', { music: { enabled: e.target.checked } }));
+  bind('output', 'change', e => save('general', { output: e.target.value })); bind('saver', 'change', e => save('general', { powerSaver: e.target.value }));
+}
+$('nav').addEventListener('click', e => { const b = e.target.closest('[data-page]'); if (b) { page = b.dataset.page; render(); } });
+$('pause').addEventListener('click', () => save('behavior', { enabled: !state.controls.enabled }, state.controls.enabled ? 'Sharing paused' : 'Sharing resumed'));
+refresh(true); setInterval(() => { if (document.visibilityState === 'visible' && !document.activeElement?.matches('input[type=text],input[type=search]')) refresh(); }, 5000);
+</script>
+</body>
+</html>
