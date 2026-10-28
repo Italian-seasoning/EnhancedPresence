@@ -42,3 +42,13 @@ test('malformed settings are left untouched', () => {
   assert.equal(readFileSync(path, 'utf8'), '{ nope');
   assert.equal(existsSync(`${path}.enhancedpresence.bak`), false);
 });
+
+test('codex install uses its three events with async, and remove clears every event', async () => {
+  const { codexEvents } = await import('../presence-engine/hooks.mjs');
+  const path = setup();
+  installHooks(path, cmd, codexEvents, { async: true });
+  assert.deepEqual(Object.keys(read(path).hooks).sort(), [...codexEvents].sort());
+  assert.equal(read(path).hooks.Stop[0].hooks[0].async, true);
+  removeHooks(path);
+  assert.deepEqual(read(path).hooks, {});
+});

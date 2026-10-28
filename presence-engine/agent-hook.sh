@@ -18,12 +18,13 @@ case $event in
   PostToolUse|PostToolUseFailure)
     tool=${payload#*'"tool_name":"'}; tool=${tool%%\"*}
     case $tool in
-      Edit|Write|MultiEdit|NotebookEdit) kind=edit;;
+      Edit|Write|MultiEdit|NotebookEdit|apply_patch) kind=edit;;
       Read|Grep|Glob|LS) kind=read;;
       WebSearch|WebFetch) kind=research;;
       Agent|Task) kind=delegate;;
-      Bash)
-        command=${payload#*'"command":"'}; command=${command%%\"*}
+      Bash|shell|exec_command|local_shell)
+        # Claude Code sends a string, Codex may send an array; match on the text after "command":.
+        command=${payload#*'"command":'}; command=${command%%\}*}
         case $command in
           *'git commit'*|*'git push'*|*'git merge'*|*'git rebase'*) kind=git;;
           *test*|*pytest*|*jest*|*vitest*) kind=test;;

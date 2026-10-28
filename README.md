@@ -13,21 +13,36 @@
 ## Features
 
 - **Your apps, your rules.** Shows the app you are using with its icon and elapsed time. Only apps you allow ever appear.
-- **Agent task status.** While Claude Code works, your timer shows how long the task has been running and the status says what is happening: "Squashing bugs" after a failing test, "Running tests", "Writing code", "Shipping changes".
+- **Agent task status.** While Claude Code or Codex works, your timer shows how long the *task* has been running and the status says what is happening: "Squashing bugs" after a failing test, "Running tests", "Writing code", "Shipping changes".
 - **Optional AI wording.** Have Claude Haiku or Codex Luna rephrase that status. Off by default.
+- **Menu bar helper.** Pause or resume sharing from the menu bar without opening Discord.
+- **Quiet hours and your own phrases.** Hide your activity overnight and replace the built-in phrases for any app.
 - **Project names.** Off by default, per app.
 - **Music.** Optional Apple Music activity.
 - **Settings inside Discord.** Settings → Vencord → Plugins → EnhancedPresenceUniversal.
 
-Enhanced Presence is an independent custom plugin. It is not an official Vencord or Discord product, and modifying Discord's client is against Discord's terms. Read the [Terms of Use](TERMS.md) before installing.
+Enhanced Presence is an independent custom plugin. It is not an official Vencord or Discord product, and modifying Discord's client is against Discord's terms. **You must read and accept the [Terms of Use](TERMS.md) to install it, and you use it at your own risk.**
 
 ## Requirements
 
-macOS, Xcode command-line tools, Node.js 22+, Git, pnpm, CMake, a [Vencord source checkout](https://docs.vencord.dev/installing/), and a Discord **Application ID** from the [Developer Portal](https://discord.com/developers/applications). Never use a bot or account token.
+macOS, Xcode with its command-line tools, Node.js 22+, Git, pnpm, CMake, and a Discord **Application ID** from the [Developer Portal](https://discord.com/developers/applications) (create an application and copy its Application ID; never use a bot or account token).
 
 ## Install
 
-From this repository:
+```sh
+npm run quickstart -- --application-id YOUR_APPLICATION_ID
+```
+
+That one command builds the detector and music adapter, installs the background service, the menu bar helper and the agent hooks, builds Vencord with the plugin at the tested revision, and applies it to Discord. You are asked to accept the Terms of Use first (scripts can pass `--accept-terms`). Add `--restart-discord` to restart Discord for you, or quit and reopen it yourself. Then open **Settings → Vencord → Plugins → EnhancedPresenceUniversal**, review the app list and press **Resume**. Discord's own activity-sharing setting must be on.
+
+A small background agent re-applies the build after Discord updates. Check everything at any time with:
+
+```sh
+npm run doctor
+```
+
+<details>
+<summary>Manual install (use your own Vencord checkout)</summary>
 
 ```sh
 npm run build:detector
@@ -36,25 +51,14 @@ npm run install:companion -- YOUR_APPLICATION_ID --helper
 npm run install:vencord -- /absolute/path/to/Vencord
 ```
 
-Then, in your Vencord checkout:
+Then, in your Vencord checkout, run `pnpm install --frozen-lockfile`, `pnpm build --disable-updater` and `pnpm inject`, and restart Discord.
 
-```sh
-pnpm install --frozen-lockfile
-pnpm build --disable-updater
-pnpm inject
-```
-
-Restart Discord, open the plugin settings, review the app list and press **Resume**. Discord's own activity-sharing setting must be on.
-
-What `install:companion` does:
-
-- Installs the background service and starts it at login. Later runs reuse your saved Application ID.
-- With `--helper`, runs it through a small signed app, *EnhancedPresence Helper*, so macOS privacy lists show a named app with an icon instead of `node`.
-- Adds the Claude Code hook (below). Use `--no-hooks` to skip it.
+`install:companion` installs the background service and starts it at login (later runs reuse your saved Application ID), adds the agent hooks (skip with `--no-hooks`), and with `--helper` runs everything through the signed menu bar app *EnhancedPresence Helper* so macOS privacy lists show a named app with an icon instead of `node`.
+</details>
 
 ## Agent task status
 
-The installer adds a tiny hook to `~/.claude/settings.json` for four events: prompt submitted, tool finished, tool failed and stop. It is a short shell script that appends one line to a local file, so it adds around ten milliseconds per call. It records only the kind of tool used and the project folder name, never prompts, commands or file paths. Your original settings are saved once as `settings.json.enhancedpresence.bak`, and your other hooks are left alone.
+The installer adds a tiny hook to `~/.claude/settings.json` (and to `~/.codex/hooks.json` if you use Codex) for these events: prompt submitted, tool finished, tool failed (Claude Code) and stop. Codex asks you to review new hooks, so open Codex and run `/hooks` once to trust it; Codex has no separate failure event, so "Squashing bugs" is Claude Code only. It is a short shell script that appends one line to a local file, so it adds around ten milliseconds per call. It records only the kind of tool used and the project folder name, never prompts, commands or file paths. Your original settings are saved once as `settings.json.enhancedpresence.bak`, and your other hooks are left alone. Remove the hooks any time with `npm run install:companion -- --remove-hooks`.
 
 The status is chosen from a fixed table of phrases, so it costs nothing. It appears while a terminal, editor, Codex or Claude app is in front. It clears on stop or after 15 minutes without activity.
 
@@ -73,6 +77,17 @@ In the plugin settings, or in `config.local.json`:
 | `luna` | `codex exec -m luna`, low effort, read-only | Your Codex login. Run `codex exec -m luna "hi"` once to check your install accepts the model name. |
 
 No API keys are read or stored. Neither tool saves a session, scratch files are deleted after each call, and it runs at most once per interval. The model sees only tool categories, the app name and minutes elapsed. If a call fails you keep the fixed phrase.
+
+### Quiet hours and phrases
+
+In `config.local.json`:
+
+```json
+"quietHours": { "enabled": true, "start": "23:00", "end": "07:00" },
+"phrases": { "com.apple.dt.Xcode": ["Compiling excuses", "One more build"] }
+```
+
+Quiet hours clear your activity and may wrap past midnight. Each app takes 1 to 8 phrases of 2 to 64 characters; one is picked per session.
 
 ## Privacy
 
@@ -98,19 +113,20 @@ launchctl kickstart -k "gui/$(id -u)/app.enhancedpresence.engine"
 
 ## Updating
 
-There is no automatic updater, because Vencord's own updater would replace a custom build. Pull this repository and Vencord, rerun the install and build commands, and restart Discord. Settings and pairing are kept. A Discord or macOS update may need a reinject or a small fix, and the Apple Music integration relies on a private macOS interface that can break.
+There is no automatic updater, because Vencord's own updater would replace a custom build. Pull this repository and run `npm run quickstart` again, then restart Discord. Settings and pairing are kept. A Discord or macOS update may need a reinject or a small fix, and the Apple Music integration relies on a private macOS interface that can break.
 
 ## Uninstall
 
 ```sh
 npm run install:companion -- --remove-hooks
 launchctl bootout "gui/$(id -u)/app.enhancedpresence.engine"
-rm ~/Library/LaunchAgents/app.enhancedpresence.engine.plist
+launchctl bootout "gui/$(id -u)/app.enhancedpresence.vencord-repair"
+rm ~/Library/LaunchAgents/app.enhancedpresence.engine.plist ~/Library/LaunchAgents/app.enhancedpresence.vencord-repair.plist
 rm -r "$HOME/Applications/EnhancedPresence Helper.app"
 rm -r "$HOME/Library/Application Support/EnhancedPresence"
 ```
 
-Then delete `src/userplugins/EnhancedPresenceUniversal` from your Vencord checkout and rebuild.
+To remove Vencord's patch from Discord, reinstall Discord or restore its original archive: the file `_app.asar` in `/Applications/Discord.app/Contents/Resources` is Discord's own and can be renamed back to `app.asar`.
 
 ## Troubleshooting
 
@@ -118,7 +134,8 @@ Then delete `src/userplugins/EnhancedPresenceUniversal` from your Vencord checko
 |---|---|
 | Nothing shows on Discord | Press **Resume** in the plugin, turn on Discord's activity sharing, and check the app is allowed. |
 | Plugin missing | Rebuild with `--disable-updater`, run `pnpm inject`, restart Discord. |
-| No task timer | Check the hook is in `~/.claude/settings.json` and that a terminal, editor, Codex or Claude app is in front. |
+| Anything else | Run `npm run doctor`; it lists what is wrong and how to fix it. Include its output in bug reports. |
+| No task timer | Check the hook is installed (`npm run doctor`), that Codex has trusted it (`/hooks`), and that a terminal, editor, Codex or Claude app is in front. |
 | Project names empty | Grant Accessibility (above) and restart the service. |
 
 ## Development
@@ -126,6 +143,8 @@ Then delete `src/userplugins/EnhancedPresenceUniversal` from your Vencord checko
 ```sh
 npm test
 ```
+
+Tests run in CI on every push. See [SECURITY.md](SECURITY.md) to report a vulnerability.
 
 ## License
 

@@ -1,4 +1,4 @@
-import { foregroundProfile, publicProfile, validateConfig, nameApps, agentHosts } from './profiles.mjs';
+import { foregroundProfile, publicProfile, validateConfig, nameApps, agentHosts, inQuietHours } from './profiles.mjs';
 import { safeName } from './names.mjs';
 import { agentActivity } from './agent.mjs';
 import { StatusWriter } from './ai.mjs';
@@ -42,11 +42,12 @@ export class PresenceEngine {
     this.sessionPhrases = new Map();
   }
   details(id, pid, start, profile, config) {
-    if (!phrases[id] || Object.hasOwn(config.profiles, id)) return profile.details;
+    const list = config.phrases[id] ?? phrases[id];
+    if (!list || Object.hasOwn(config.profiles, id)) return profile.details;
     const key = `${id}:${pid}:${start}`;
     if (!this.sessionPhrases.has(key)) {
       if (this.sessionPhrases.size >= 128) this.sessionPhrases.delete(this.sessionPhrases.keys().next().value);
-      this.sessionPhrases.set(key, phrases[id][Math.floor(Math.random() * phrases[id].length)]);
+      this.sessionPhrases.set(key, list[Math.floor(Math.random() * list.length)]);
     }
     return this.sessionPhrases.get(key);
   }
@@ -65,6 +66,7 @@ export class PresenceEngine {
   }
   // A running coding-agent task (from the hook) replaces the label and timer in agent host apps.
   async update(snapshot, now = Date.now()) {
+    if (inQuietHours(this.config.quietHours, new Date(now))) { this.session = this.pending = this.activity = null; return null; }
     const activity = await this.baseUpdate(snapshot, now);
     const task = activity && agentHosts.has(activity.appId) ? agentActivity(this.config.agent, now, this.agentDir) : null;
     if (!task) return activity;

@@ -2,7 +2,9 @@ import { copyFileSync, existsSync, lstatSync, readFileSync, renameSync, writeFil
 
 // Adds or removes the task-status hook in Claude Code's settings. Our entries are
 // recognised by the script name, so other hooks are never touched and reruns don't duplicate.
-const events = ['UserPromptSubmit', 'PostToolUse', 'PostToolUseFailure', 'Stop'];
+export const claudeEvents = ['UserPromptSubmit', 'PostToolUse', 'PostToolUseFailure', 'Stop'];
+// Codex has no separate failure event.
+export const codexEvents = ['UserPromptSubmit', 'PostToolUse', 'Stop'];
 const ours = entry => entry?.hooks?.some(h => typeof h?.command === 'string' && h.command.includes('agent-hook'));
 
 function load(path) {
@@ -20,12 +22,12 @@ function save(path, settings) {
   renameSync(temporary, path);
 }
 
-export function installHooks(path, command) {
+export function installHooks(path, command, events = claudeEvents, extra = {}) {
   const settings = load(path);
   settings.hooks ??= {};
   for (const event of events) {
     const kept = (settings.hooks[event] ?? []).filter(entry => !ours(entry));
-    settings.hooks[event] = [...kept, { hooks: [{ type: 'command', command, timeout: 3 }] }];
+    settings.hooks[event] = [...kept, { hooks: [{ type: 'command', command, timeout: 3, ...extra }] }];
   }
   save(path, settings);
 }
@@ -33,8 +35,7 @@ export function installHooks(path, command) {
 export function removeHooks(path) {
   if (!existsSync(path)) return;
   const settings = load(path);
-  for (const event of events) {
-    if (!settings.hooks?.[event]) continue;
+  for (const event of Object.keys(settings.hooks ?? {})) {
     settings.hooks[event] = settings.hooks[event].filter(entry => !ours(entry));
     if (!settings.hooks[event].length) delete settings.hooks[event];
   }

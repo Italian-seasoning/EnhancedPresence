@@ -3,6 +3,7 @@ import { resolve, dirname, join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { profiles, blocked, validateConfig } from './profiles.mjs';
+import { diagnose } from './doctor.mjs';
 
 const args = process.argv.slice(2);
 const command = args[0];
@@ -29,7 +30,7 @@ try {
     if (existsSync(pairing)) {
       try { paired = /^[a-f0-9]{64}$/.test(JSON.parse(readFileSync(pairing, 'utf8')).token) ? 'valid' : 'invalid'; } catch { paired = 'invalid'; }
     }
-    console.log(JSON.stringify({ configuration, detector: existsSync(fileURLToPath(new URL('../build/detector', import.meta.url))) ? 'built' : 'missing', pairing: paired, vencordAdapter: 'source ready; installation not checked', activation: 'manual approval required' }, null, 2));
+    console.log(JSON.stringify({ configuration, detector: existsSync(fileURLToPath(new URL('../build/detector', import.meta.url))) ? 'built' : 'missing', pairing: paired, vencordAdapter: 'source ready; installation not checked', activation: 'manual approval required', checks: await diagnose() }, null, 2));
   } else if (command === 'init') {
     save({ enabled: false }, true);
     console.log('Created private local settings; presence starts paused.');

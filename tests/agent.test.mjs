@@ -91,3 +91,11 @@ test('plugin controls read and save AI status settings, rejecting bad values', (
   assert.throws(() => updateAgent(root, { provider: 'gpt', intervalMinutes: 30, showProject: false }));
   assert.throws(() => updateAgent(root, { provider: 'haiku', intervalMinutes: 1, showProject: false }));
 });
+
+test('hook understands Codex payloads: apply_patch and array commands', () => {
+  const dir = fresh();
+  fire(dir, { hook_event_name: 'UserPromptSubmit', cwd: '/x/demo' });
+  fire(dir, { hook_event_name: 'PostToolUse', tool_name: 'apply_patch', tool_input: { command: '*** Begin Patch' } });
+  fire(dir, { hook_event_name: 'PostToolUse', tool_name: 'Bash', tool_input: { command: ['bash', '-lc', 'npm test'] }, tool_response: 'build' });
+  assert.match(readFileSync(join(dir, 'agent-events.log'), 'utf8'), / edit 0\n.* test 0\n$/);
+});

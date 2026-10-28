@@ -69,7 +69,7 @@ export const blocked = new Set(['com.apple.MobileSMS', 'com.apple.mail', 'com.ap
 export const nameApps = new Set(['com.apple.TextEdit', 'com.apple.FinalCut', 'com.blackmagic-design.DaVinciResolve', 'com.adobe.Photoshop', 'com.adobe.lightroomCC', 'com.adobe.LightroomClassicCC7', 'com.adobe.illustrator', 'com.adobe.InDesign', 'com.adobe.AfterEffects', 'com.adobe.PremierePro']);
 // Apps where a running coding-agent task replaces the generic label.
 export const agentHosts = new Set(['com.apple.Terminal', 'com.googlecode.iterm2', 'com.mitchellh.ghostty', 'com.microsoft.VSCode', 'com.microsoft.VSCodeInsiders', 'com.todesktop.230313mzl4w4u92', 'com.apple.dt.Xcode', 'com.openai.codex', 'com.anthropic.claudefordesktop', 'com.google.antigravity']);
-export const defaultConfig = { enabled: true, idleSeconds: 300, switchDelaySeconds: 120, trackingEnabled: true, music: { enabled: true, sources: ['com.apple.Music'], priority: 'app' }, allowlist: Object.keys(profiles), denylist: [], profiles: {}, assets: {}, resolve: { enabled: false }, disclosure: {}, agent: { enabled: true, showProject: false, ai: { provider: 'off', intervalMinutes: 15 } } };
+export const defaultConfig = { enabled: true, idleSeconds: 300, switchDelaySeconds: 120, trackingEnabled: true, music: { enabled: true, sources: ['com.apple.Music'], priority: 'app' }, allowlist: Object.keys(profiles), denylist: [], profiles: {}, assets: {}, resolve: { enabled: false }, disclosure: {}, agent: { enabled: true, showProject: false, ai: { provider: 'off', intervalMinutes: 15 } }, quietHours: { enabled: false, start: '23:00', end: '07:00' }, phrases: {} };
 
 export function publicProfile(id, config) {
   if (typeof id !== 'string' || blocked.has(id) || config.denylist.includes(id) || !config.allowlist.includes(id)) return null;
@@ -104,6 +104,19 @@ export function validateConfig(input = {}) {
   c.agent = { ...defaultConfig.agent, ...c.agent, ai: { ...defaultConfig.agent.ai, ...c.agent?.ai } };
   const ai = c.agent.ai;
   if (typeof c.agent.enabled !== 'boolean' || typeof c.agent.showProject !== 'boolean' || !['off', 'haiku', 'luna'].includes(ai.provider) || !Number.isInteger(ai.intervalMinutes) || ai.intervalMinutes < 5 || ai.intervalMinutes > 120 || [ai.model, ai.effort].some(x => x !== undefined && !/^[\w.-]{1,40}$/.test(x))) throw Error('Invalid agent setting');
+  c.quietHours = { ...defaultConfig.quietHours, ...c.quietHours };
+  const q = c.quietHours, clock = /^([01]\d|2[0-3]):[0-5]\d$/;
+  if (typeof q.enabled !== 'boolean' || !clock.test(q.start) || !clock.test(q.end)) throw Error('Invalid quiet hours');
+  if (!c.phrases || typeof c.phrases !== 'object' || Array.isArray(c.phrases)) throw Error('Invalid phrases');
+  for (const [id, list] of Object.entries(c.phrases)) if (!/^[\w.-]{1,200}$/.test(id) || !Array.isArray(list) || list.length < 1 || list.length > 8 || list.some(x => typeof x !== 'string' || x.length < 2 || x.length > 64 || /[\x00-\x1f]/.test(x))) throw Error('Invalid phrases');
   c.disclosure = Object.fromEntries(Object.entries(c.disclosure).map(([id, options]) => [id, { ...options }]));
   return c;
+}
+
+// Quiet hours may wrap past midnight (for example 23:00 to 07:00).
+export function inQuietHours(quiet, date = new Date()) {
+  if (!quiet?.enabled) return false;
+  const minutes = date.getHours() * 60 + date.getMinutes(), at = text => Number(text.slice(0, 2)) * 60 + Number(text.slice(3));
+  const start = at(quiet.start), end = at(quiet.end);
+  return start === end ? false : start < end ? minutes >= start && minutes < end : minutes >= start || minutes < end;
 }
