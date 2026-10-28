@@ -90,7 +90,7 @@ export function readControls(root) {
   const privateNames = { 'com.apple.MobileSMS': 'Messages', 'com.apple.mail': 'Mail', 'com.apple.Photos': 'Photos', 'com.apple.Passwords': 'Passwords', 'com.apple.FaceTime': 'FaceTime', 'com.hnc.Discord': 'Discord', 'com.hnc.DiscordCanary': 'Discord Canary', 'com.hnc.DiscordPTB': 'Discord PTB', 'dev.vencord.Vesktop': 'Vesktop', 'com.agilebits.onepassword7': '1Password 7', 'com.1password.1password': '1Password', 'com.bitwarden.desktop': 'Bitwarden', 'org.keepassxc.keepassxc': 'KeePassXC' };
   const ids = [...new Set([...Object.keys(profiles), ...blocked, ...Object.keys(c.profiles), ...c.allowlist, ...c.denylist])];
   return {
-    enabled: c.enabled, idleSeconds: c.idleSeconds, namesAvailable,
+    enabled: c.enabled, idleSeconds: c.idleSeconds, namesAvailable, agent: { provider: c.agent.ai.provider, intervalMinutes: c.agent.ai.intervalMinutes, showProject: c.agent.showProject },
     switchDelaySeconds: c.switchDelaySeconds, trackingEnabled: c.trackingEnabled, music: c.music,
     usage, ...(usageError ? { usageError } : {}),
     apps: ids.map(id => {
@@ -148,4 +148,10 @@ export function updateBehavior(root, input) {
   for (const key of ['enabled', 'switchDelaySeconds', 'trackingEnabled']) if (input[key] !== undefined) c[key] = input[key];
   save(root, c);
   return readControls(root);
+}
+export function updateAgent(root, input) {
+  if (!input || !['off', 'haiku', 'luna'].includes(input.provider) || !Number.isInteger(input.intervalMinutes) || typeof input.showProject !== 'boolean') throw Error('Invalid AI status setting');
+  const c = load(root);
+  c.agent = { ...c.agent, showProject: input.showProject, ai: { ...c.agent.ai, provider: input.provider, intervalMinutes: input.intervalMinutes } };
+  save(root, c); return readControls(root);
 }

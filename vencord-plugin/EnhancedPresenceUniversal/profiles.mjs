@@ -67,7 +67,9 @@ export const profiles = {
 };
 export const blocked = new Set(['com.apple.MobileSMS', 'com.apple.mail', 'com.apple.Photos', 'com.apple.Passwords', 'com.apple.FaceTime', 'com.hnc.Discord', 'com.hnc.DiscordCanary', 'com.hnc.DiscordPTB', 'dev.vencord.Vesktop', 'com.agilebits.onepassword7', 'com.1password.1password', 'com.bitwarden.desktop', 'org.keepassxc.keepassxc']);
 export const nameApps = new Set(['com.apple.TextEdit', 'com.apple.FinalCut', 'com.blackmagic-design.DaVinciResolve', 'com.adobe.Photoshop', 'com.adobe.lightroomCC', 'com.adobe.LightroomClassicCC7', 'com.adobe.illustrator', 'com.adobe.InDesign', 'com.adobe.AfterEffects', 'com.adobe.PremierePro']);
-export const defaultConfig = { enabled: true, idleSeconds: 300, switchDelaySeconds: 120, trackingEnabled: true, music: { enabled: true, sources: ['com.apple.Music'], priority: 'app' }, allowlist: Object.keys(profiles), denylist: [], profiles: {}, assets: {}, resolve: { enabled: false }, disclosure: {} };
+// Apps where a running coding-agent task replaces the generic label.
+export const agentHosts = new Set(['com.apple.Terminal', 'com.googlecode.iterm2', 'com.mitchellh.ghostty', 'com.microsoft.VSCode', 'com.microsoft.VSCodeInsiders', 'com.todesktop.230313mzl4w4u92', 'com.apple.dt.Xcode', 'com.openai.codex', 'com.anthropic.claudefordesktop', 'com.google.antigravity']);
+export const defaultConfig = { enabled: true, idleSeconds: 300, switchDelaySeconds: 120, trackingEnabled: true, music: { enabled: true, sources: ['com.apple.Music'], priority: 'app' }, allowlist: Object.keys(profiles), denylist: [], profiles: {}, assets: {}, resolve: { enabled: false }, disclosure: {}, agent: { enabled: true, showProject: false, ai: { provider: 'off', intervalMinutes: 15 } } };
 
 export function publicProfile(id, config) {
   if (typeof id !== 'string' || blocked.has(id) || config.denylist.includes(id) || !config.allowlist.includes(id)) return null;
@@ -99,6 +101,9 @@ export function validateConfig(input = {}) {
   for (const [id, options] of Object.entries(c.disclosure)) {
     if (!nameApps.has(id) || !options || typeof options !== 'object' || Array.isArray(options) || typeof options.showName !== 'boolean' || typeof options.showContext !== 'boolean' || (options.showContext && id !== 'com.blackmagic-design.DaVinciResolve')) throw Error('Invalid name or workspace setting');
   }
+  c.agent = { ...defaultConfig.agent, ...c.agent, ai: { ...defaultConfig.agent.ai, ...c.agent?.ai } };
+  const ai = c.agent.ai;
+  if (typeof c.agent.enabled !== 'boolean' || typeof c.agent.showProject !== 'boolean' || !['off', 'haiku', 'luna'].includes(ai.provider) || !Number.isInteger(ai.intervalMinutes) || ai.intervalMinutes < 5 || ai.intervalMinutes > 120 || [ai.model, ai.effort].some(x => x !== undefined && !/^[\w.-]{1,40}$/.test(x))) throw Error('Invalid agent setting');
   c.disclosure = Object.fromEntries(Object.entries(c.disclosure).map(([id, options]) => [id, { ...options }]));
   return c;
 }

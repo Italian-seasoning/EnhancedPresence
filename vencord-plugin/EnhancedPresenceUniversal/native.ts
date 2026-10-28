@@ -2,7 +2,7 @@
 import { homedir } from "os";
 import { join } from "path";
 import { readLocalPairing } from "./pairing.mjs";
-import { AppUpdate, BehaviorUpdate, readControls, readRuntimeStatus, updateApp, updateIdle, updateBehavior } from "./controls.mjs";
+import { AgentControl, AppUpdate, updateAgent, BehaviorUpdate, readControls, readRuntimeStatus, updateApp, updateIdle, updateBehavior } from "./controls.mjs";
 import { app, shell } from "electron";
 import { existsSync } from "fs";
 import { execFile } from "child_process";
@@ -29,6 +29,7 @@ const installedIcon = createInstalledIconLookup({
     getFileIcon: async path => (await app.getFileIcon(path, { size: "normal" })).toDataURL()
 });
 export function getInstalledAppIcon(_event: Electron.IpcMainInvokeEvent, id: string) { return process.platform === "darwin" ? installedIcon(id) : Promise.resolve(undefined); }
+export function saveAgentSettings(_event: Electron.IpcMainInvokeEvent, input: AgentControl) { return updateAgent(companionRoot(), input); }
 export function openNamePermissions(_event: Electron.IpcMainInvokeEvent) {
     if (process.platform !== "darwin") return;
     return shell.openExternal("x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility");

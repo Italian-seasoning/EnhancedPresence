@@ -1,29 +1,42 @@
 <div align="center">
-  <img src="assets/thumbnail.svg" alt="Enhanced Presence — a little more you, on Discord" width="900" />
+  <img src="assets/icon.png" alt="" width="120" />
+
+  # Enhanced Presence
+
+  Show what you are actually working on in Discord: the app, how long you have been in it, and what your coding agent is doing.
+
+  macOS · Vencord plugin · GPL-3.0-or-later · source beta
+
+  <img src="assets/thumbnail.svg" alt="Enhanced Presence status card" width="760" />
 </div>
 
-# Enhanced Presence
+## Features
 
-**Source beta:** setup requires building Vencord and the macOS companion. Automatic updates and a packaged installer are not available yet.
+- **Your apps, your rules.** Shows the app you are using with its icon and elapsed time. Only apps you allow ever appear.
+- **Agent task status.** While Claude Code works, your timer shows how long the task has been running and the status says what is happening: "Squashing bugs" after a failing test, "Running tests", "Writing code", "Shipping changes".
+- **Optional AI wording.** Have Claude Haiku or Codex Luna rephrase that status. Off by default.
+- **Project names.** Off by default, per app.
+- **Music.** Optional Apple Music activity.
+- **Settings inside Discord.** Settings → Vencord → Plugins → EnhancedPresenceUniversal.
 
-A macOS companion and Vencord user plugin that share the app you’re using on Discord. Choose which apps can appear, show an app’s icon and elapsed open time, and optionally share supported project names. Creative apps get short, varied activity text.
+Enhanced Presence is an independent custom plugin. It is not an official Vencord or Discord product, and modifying Discord's client is against Discord's terms. Read the [Terms of Use](TERMS.md) before installing.
 
-**This is a custom Vencord plugin**, not an official Vencord release or a Discord product. It requires a source build of Vencord. The companion currently supports macOS; Windows and Linux app detection are not available.
+## Requirements
+
+macOS, Xcode command-line tools, Node.js 22+, Git, pnpm, CMake, a [Vencord source checkout](https://docs.vencord.dev/installing/), and a Discord **Application ID** from the [Developer Portal](https://discord.com/developers/applications). Never use a bot or account token.
 
 ## Install
-
-You need macOS, Xcode with its command-line tools, Node.js 22 or newer, Git, pnpm, CMake, a [Vencord source checkout](https://docs.vencord.dev/installing/), and a Discord application ID. Create an application in the [Discord Developer Portal](https://discord.com/developers/applications) and copy its **Application ID**. Do not use a bot token or a Discord account token.
 
 From this repository:
 
 ```sh
 npm run build:detector
 npm run build:music
-npm run install:companion -- YOUR_APPLICATION_ID
+npm run install:companion -- YOUR_APPLICATION_ID --helper
 npm run install:vencord -- /absolute/path/to/Vencord
 ```
 
-The Vencord installer refuses to overwrite an unmanaged plugin and keeps other user plugins intact. Now, from your Vencord checkout:
+Then, in your Vencord checkout:
 
 ```sh
 pnpm install --frozen-lockfile
@@ -31,37 +44,82 @@ pnpm build --disable-updater
 pnpm inject
 ```
 
-Use the installer to patch Discord, then fully restart Discord. Start the companion with:
+Restart Discord, open the plugin settings, review the app list and press **Resume**. Discord's own activity-sharing setting must be on.
 
-```sh
-launchctl bootstrap "gui/$(id -u)" "$HOME/Library/LaunchAgents/app.enhancedpresence.engine.plist"
+What `install:companion` does:
+
+- Installs the background service and starts it at login. Later runs reuse your saved Application ID.
+- With `--helper`, runs it through a small signed app, *EnhancedPresence Helper*, so macOS privacy lists show a named app with an icon instead of `node`.
+- Adds the Claude Code hook (below). Use `--no-hooks` to skip it.
+
+## Agent task status
+
+The installer adds a tiny hook to `~/.claude/settings.json` for four events: prompt submitted, tool finished, tool failed and stop. It is a short shell script that appends one line to a local file, so it adds around ten milliseconds per call. It records only the kind of tool used and the project folder name, never prompts, commands or file paths. Your original settings are saved once as `settings.json.enhancedpresence.bak`, and your other hooks are left alone.
+
+The status is chosen from a fixed table of phrases, so it costs nothing. It appears while a terminal, editor, Codex or Claude app is in front. It clears on stop or after 15 minutes without activity.
+
+### Optional AI wording
+
+In the plugin settings, or in `config.local.json`:
+
+```json
+"agent": { "showProject": false, "ai": { "provider": "haiku", "intervalMinutes": 15 } }
 ```
 
-The first install starts **paused**. Open **Discord Settings → Vencord → Plugins → EnhancedPresenceUniversal**, enable it, open its settings, review the app allowlist, and select **Resume**. Discord’s activity-sharing setting must also be enabled. The default switch delay is two minutes; the foreground app takes priority, and opening Discord keeps the last allowed app while it remains open. The display timer uses the app’s launch time, including background time.
+| Provider | Runs | Uses |
+|---|---|---|
+| `off` | nothing | Default. Fixed phrases. |
+| `haiku` | `claude -p --model haiku --effort low` | Your Claude Code login |
+| `luna` | `codex exec -m luna`, low effort, read-only | Your Codex login. Run `codex exec -m luna "hi"` once to check your install accepts the model name. |
 
-## Optional project names
+No API keys are read or stored. Neither tool saves a session, scratch files are deleted after each call, and it runs at most once per interval. The model sees only tool categories, the app name and minutes elapsed. If a call fails you keep the fixed phrase.
 
-Project and document names are off by default. In the plugin settings, select a supported app and enable **Show project name** only if you want that name visible on Discord. Adobe names can be switched off individually. Resolve also offers a separate page and render-status switch and requires its local scripting interface to be available.
+## Privacy
 
-For Final Cut and supported Adobe apps, the companion needs macOS Accessibility access to read the relevant window or project control. Run:
+- Messages, Mail, Photos, Passwords, FaceTime, password managers and Discord itself are always blocked.
+- Idle, lock, sleep, detector failure and shutdown clear your activity.
+- No window titles, URLs, document contents or file paths are read for presence. Names appear only for apps where you switched them on.
+- Settings and the pairing key stay on your Mac. The local bridge only accepts an authenticated connection from Discord.
+- There is no telemetry and no account.
+
+### Project names
+
+Enable **Show project name** for a supported app in the plugin. Final Cut and Adobe apps also need macOS Accessibility access:
 
 ```sh
 npm run accessibility -- --open
 ```
 
-The command prints the exact **Node executable and detector** paths and opens Privacy & Security → Accessibility. Use **+**, press **Shift–Command–G**, enter each path, and enable both entries. Granting Node access also grants Accessibility access to other programs launched through that Node executable. After granting access, restart the companion:
+Add the printed paths (or the helper app) under Privacy & Security → Accessibility, then restart the service:
 
 ```sh
 launchctl kickstart -k "gui/$(id -u)/app.enhancedpresence.engine"
 ```
 
-The companion reads no document content or full file paths for presence. Names are disclosed only when the switch for that app is on. Private apps, lock, sleep, and the idle timeout clear activity. The local pairing key and settings stay on your Mac.
-
 ## Updating
 
-This source release does **not** include Sparkle or an automatic custom-plugin updater. Vencord’s stock updater can replace a custom build, so this build disables it. To update, pull the latest source for this repository and Vencord, rerun the install and build commands above, then restart Discord. Reinstalling the companion preserves existing settings and pairing when the application ID is unchanged. The installer saves backups of its own previously managed plugin source before replacing it.
+There is no automatic updater, because Vencord's own updater would replace a custom build. Pull this repository and Vencord, rerun the install and build commands, and restart Discord. Settings and pairing are kept. A Discord or macOS update may need a reinject or a small fix, and the Apple Music integration relies on a private macOS interface that can break.
 
-Discord updates or a Vencord reinstall may require reinjecting the custom build. A future Discord or macOS update may require compatibility fixes. The optional Apple Music integration uses Apple’s private MediaRemote interface and may stop working after macOS updates.
+## Uninstall
+
+```sh
+npm run install:companion -- --remove-hooks
+launchctl bootout "gui/$(id -u)/app.enhancedpresence.engine"
+rm ~/Library/LaunchAgents/app.enhancedpresence.engine.plist
+rm -r "$HOME/Applications/EnhancedPresence Helper.app"
+rm -r "$HOME/Library/Application Support/EnhancedPresence"
+```
+
+Then delete `src/userplugins/EnhancedPresenceUniversal` from your Vencord checkout and rebuild.
+
+## Troubleshooting
+
+| Problem | Try |
+|---|---|
+| Nothing shows on Discord | Press **Resume** in the plugin, turn on Discord's activity sharing, and check the app is allowed. |
+| Plugin missing | Rebuild with `--disable-updater`, run `pnpm inject`, restart Discord. |
+| No task timer | Check the hook is in `~/.claude/settings.json` and that a terminal, editor, Codex or Claude app is in front. |
+| Project names empty | Grant Accessibility (above) and restart the service. |
 
 ## Development
 
@@ -69,8 +127,6 @@ Discord updates or a Vencord reinstall may require reinjecting the custom build.
 npm test
 ```
 
-The loopback bridge accepts only an authenticated local connection from Discord origins. Project-name detection, Resolve scripting, and remote icon rendering can vary by app and OS version; unsupported cases fall back to generic activity.
-
 ## License
 
-GPL-3.0-or-later. Vendored dependencies have their own licenses in `vendor/`.
+GPL-3.0-or-later, see [LICENSE](LICENSE). Vendored dependencies keep their own licenses in `vendor/`. Use is subject to the [Terms of Use](TERMS.md).

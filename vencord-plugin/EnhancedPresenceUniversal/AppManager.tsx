@@ -95,6 +95,13 @@ export function AppManager({ native, getStatus, setPaused, setAppIcons, enableSh
         catch { setError("Couldn’t update the companion. Sharing settings were not changed."); }
         finally { setBusy(false); }
     }
+    async function saveAgent(change: Partial<Controls["agent"]>) {
+        if (!native || !data || busy) return;
+        setBusy(true); setError(""); setNotice("");
+        try { setData(await native.saveAgentSettings({ ...data.agent, ...change })); setNotice("Task status settings saved."); }
+        catch { setError("Couldn’t save task status settings. Try again."); }
+        finally { setBusy(false); }
+    }
     const visible = data?.apps.filter(item => (filter === "all" || item.visibility === filter) && `${item.name} ${item.details}`.toLowerCase().includes(query.toLowerCase())) || [];
     const headline = status.paused ? "Activity paused" : !status.sharingEnabled ? "Discord activity sharing is off" : status.app ? `${status.visible ? "Sharing" : "Detected"} ${status.app}` : status.connection === "Connected" ? "Ready when you are" : "Connecting to your companion";
     return <section className="ep-manager" aria-label="EnhancedPresence app manager">
@@ -137,6 +144,13 @@ export function AppManager({ native, getStatus, setPaused, setAppIcons, enableSh
                 <div className="ep-preview"><span>Profile preview</span><div className="ep-preview-content">{status.appIcons && <AppIcon key={app.id} id={app.id} name={name} applicationId={status.applicationId} native={native} />}<div><strong>{name || "App name"}</strong><p>{app.showName ? `${app.showContext ? "Color grading" : "Editing"} “${app.id === "com.apple.TextEdit" ? "Document name" : "Project name"}”${app.id !== "com.blackmagic-design.DaVinciResolve" ? ` in ${name}` : ""}` : app.showContext ? "Color grading" : details || "Activity text"}</p>{app.showContext && <p>Color page</p>}</div></div>{(app.showName || app.showContext) && <p className="ep-hint">Example shown. Actual names and workspace appear when available.</p>}</div>
                 <div className="ep-actions"><button className="ep-button ep-primary" disabled={busy || name.trim().length < 2 || details.trim().length < 2 || (name === app.name && details === app.details)} onClick={() => void save(app.visibility, false, true)}>Save text</button><button className="ep-button" disabled={busy || !app.custom || !app.defaultName} onClick={() => void save(app.visibility, true)}>Restore default</button></div>
             </>}
+        </div>}
+        {data && <div className="ep-editor">
+            <h3>Task status wording</h3>
+            <label className="ep-idle">AI wording (uses your Claude or ChatGPT subscription)<select value={data.agent.provider} disabled={busy} onChange={event => void saveAgent({ provider: event.target.value as Controls["agent"]["provider"] })}>{[["off", "Off (fixed phrases, no usage)"], ["haiku", "Claude Haiku"], ["luna", "Codex Luna"]].map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
+            {data.agent.provider !== "off" && <label className="ep-idle">Refresh at most every<select value={data.agent.intervalMinutes} disabled={busy} onChange={event => void saveAgent({ intervalMinutes: Number(event.target.value) })}>{[15, 30, 60, 120].map(minutes => <option key={minutes} value={minutes}>{minutes} minutes</option>)}</select></label>}
+            <label className="ep-idle">Show project folder name<input type="checkbox" disabled={busy} checked={data.agent.showProject} onChange={event => void saveAgent({ showProject: event.target.checked })} /></label>
+            <p className="ep-hint">The model only sees tool categories, the app name and minutes elapsed, never prompts, paths or the project name.</p>
         </div>}
         <label className="ep-idle">Show app icons<input type="checkbox" checked={status.appIcons} onChange={event => { setAppIcons(event.target.checked); setStatus(getStatus()); }} /></label>
         <p className="ep-hint">Settings use installed app icons when available. Discord uses cached public artwork{app?.editable && !appIcon(app.id) ? `; remote artwork is unavailable for ${app.name}` : ""}. Local icons are never uploaded.</p>

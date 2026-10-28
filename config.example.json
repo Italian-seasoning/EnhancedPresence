@@ -82,5 +82,13 @@
   "resolve": {
     "enabled": false
   },
-  "disclosure": {}
+  "disclosure": {},
+  "agent": {
+    "enabled": true,
+    "showProject": false,
+    "ai": {
+      "provider": "off",
+      "intervalMinutes": 15
+    }
+  }
 }

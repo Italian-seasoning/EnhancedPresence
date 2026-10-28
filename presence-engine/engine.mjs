@@ -1,5 +1,7 @@
-import { foregroundProfile, publicProfile, validateConfig, nameApps } from './profiles.mjs';
+import { foregroundProfile, publicProfile, validateConfig, nameApps, agentHosts } from './profiles.mjs';
 import { safeName } from './names.mjs';
+import { agentActivity } from './agent.mjs';
+import { StatusWriter } from './ai.mjs';
 export const isDiscord = id => ['com.hnc.Discord', 'com.hnc.DiscordCanary', 'com.hnc.DiscordPTB', 'dev.vencord.Vesktop'].includes(id);
 const creative = id => id === 'com.apple.FinalCut' || id === 'com.blackmagic-design.DaVinciResolve' || id?.startsWith('com.adobe.');
 const phrases = {
@@ -28,7 +30,9 @@ const phrases = {
 const pages = { media: 'Managing media', cut: 'Cutting video', edit: 'Editing video', fusion: 'Compositing', color: 'Color grading', fairlight: 'Mixing audio', deliver: 'Preparing delivery' };
 
 export class PresenceEngine {
-  constructor(config = {}, provider = async () => null) {
+  constructor(config = {}, provider = async () => null, agentDir, runner) {
+    this.agentDir = agentDir;
+    this.writer = new StatusWriter(runner);
     this.config = validateConfig(config);
     this.provider = provider;
     this.session = null;
@@ -59,7 +63,17 @@ export class PresenceEngine {
     const deadline = this.discordUntil ?? this.pending?.dueAt;
     return deadline == null ? null : Math.max(0, deadline - now);
   }
+  // A running coding-agent task (from the hook) replaces the label and timer in agent host apps.
   async update(snapshot, now = Date.now()) {
+    const activity = await this.baseUpdate(snapshot, now);
+    const task = activity && agentHosts.has(activity.appId) ? agentActivity(this.config.agent, now, this.agentDir) : null;
+    if (!task) return activity;
+    const { categories, ...shown } = task;
+    const minutes = Math.round((now / 1000 - shown.startTimestamp) / 60);
+    const details = this.writer.get(this.config.agent.ai, { phrase: shown.details, app: activity.appName, minutes, categories: categories.slice(-6) }, now) ?? shown.details;
+    return { ...activity, ...shown, details };
+  }
+  async baseUpdate(snapshot, now = Date.now()) {
     const c = this.config;
     const profile = foregroundProfile(snapshot, c);
     if (!profile) {
