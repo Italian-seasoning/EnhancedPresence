@@ -19,6 +19,7 @@ test('companion installation is paused and hooks are opt-in, preserving settings
     mkdirSync(join(source, 'vendor/mediaremote-adapter/LICENSE'), { recursive: true });
     for (const name of ['install.mjs', 'profiles.mjs', 'hooks.mjs']) copyFileSync(fileURLToPath(new URL(`../presence-engine/${name}`, import.meta.url)), join(source, 'presence-engine', name));
     writeFileSync(join(source, 'presence-engine/main.mjs'), ''); writeFileSync(join(source, 'shared/protocol.mjs'), '');
+    copyFileSync(new URL('../shared/helper-metadata.mjs', import.meta.url), join(source, 'shared/helper-metadata.mjs'));
     writeFileSync(join(source, 'vendor/ws/wrapper.mjs'), ''); writeFileSync(join(source, 'vendor/mediaremote-adapter/bin/mediaremote-adapter.pl'), '');
     writeFileSync(join(source, 'vendor/mediaremote-adapter/LICENSE/LICENSE'), '');
     writeFileSync(join(source, 'build', 'detector'), 'fixture');
@@ -51,6 +52,7 @@ test('prebuilt companion install uses the bundled runtime and signed helper with
     copyFileSync(fileURLToPath(new URL('../presence-engine/agent-hook.sh', import.meta.url)), join(payload, 'presence-engine/agent-hook.sh'));
     mkdirSync(join(helper, 'Contents/MacOS'), { recursive: true }); mkdirSync(join(helper, 'Contents/Resources'), { recursive: true }); mkdirSync(join(helper, 'Contents/_CodeSignature'), { recursive: true });
     writeFileSync(join(payload, 'presence-engine/main.mjs'), ''); writeFileSync(join(payload, 'shared/protocol.mjs'), '');
+    copyFileSync(new URL('../shared/helper-metadata.mjs', import.meta.url), join(payload, 'shared/helper-metadata.mjs'));
     writeFileSync(join(payload, 'vendor/ws/wrapper.mjs'), ''); writeFileSync(join(payload, 'vendor/mediaremote-adapter/bin/mediaremote-adapter.pl'), '');
     writeFileSync(join(payload, 'vendor/mediaremote-adapter/LICENSE/LICENSE'), '');
     writeFileSync(join(payload, 'build/detector'), 'detector');

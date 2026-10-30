@@ -20,3 +20,8 @@ export function saverActive(mode, power) {
   if (mode === 'off' || !power) return false;
   return power.lowPower || (power.onBattery && power.percent !== null && power.percent <= 20);
 }
+
+// The metadata stream is event-driven; automatic battery saving only pauses AI work.
+export function musicSuspended(mode, selfProtect) {
+  return mode === 'on' || selfProtect;
+}

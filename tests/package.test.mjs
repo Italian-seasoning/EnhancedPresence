@@ -5,6 +5,7 @@ import { mkdirSync, mkdtempSync, writeFileSync, readFileSync, existsSync, rmSync
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { verifyDownload, checksumFor, stagePayload, payloadManifest } from '../scripts/package-macos.mjs';
+import { APPLE_MUSIC_AUTOMATION_DESCRIPTION } from '../shared/helper-metadata.mjs';
 
 test('release downloads require the expected digest and exact official filename', () => {
   const bytes = Buffer.from('download');
@@ -28,7 +29,9 @@ test('payload staging includes runtime and licenses, excludes private state and 
     assert.equal(existsSync(join(resources, 'runtime/LICENSE')), true);
     assert.equal(existsSync(join(resources, 'presence-engine/config.local.json')), false);
     assert.equal(existsSync(join(resources, 'vencord/dist/renderer.js.map')), false);
-    assert.match(readFileSync(join(app, 'Contents/Info.plist'), 'utf8'), /13\.5/);
+    const helperInfo = readFileSync(join(app, 'Contents/Info.plist'), 'utf8');
+    assert.match(helperInfo, /13\.5/);
+    assert.ok(helperInfo.includes(`<key>NSAppleEventsUsageDescription</key><string>${APPLE_MUSIC_AUTOMATION_DESCRIPTION}</string>`));
     const manifest = payloadManifest(app, { version: '0.9.0', arch: 'arm64' });
     assert.equal(manifest.schema, 1);
     assert.equal(manifest.files['Contents/Resources/runtime/node'], createHash('sha256').update('fixture').digest('hex'));

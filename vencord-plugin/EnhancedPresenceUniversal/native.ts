@@ -1,14 +1,20 @@
 /* Licensed under GPL-3.0-or-later. */
 import { homedir } from "os";
 import { join } from "path";
+import { randomUUID } from "crypto";
 import { readLocalPairing } from "./pairing.mjs";
 import { AgentControl, AppUpdate, updateAgent, BehaviorUpdate, readControls, readRuntimeStatus, updateApp, updateIdle, updateBehavior } from "./controls.mjs";
 import { app, shell } from "electron";
-import { existsSync } from "fs";
+import { existsSync, lstatSync, readFileSync, writeFileSync, renameSync, unlinkSync } from "fs";
 import { execFile } from "child_process";
 import { createInstalledIconLookup } from "./installed-icons.mjs";
 import { createMusicImagesLookup } from "./music-artwork.mjs";
+import { controlMusic as issueMusicControl, readLocalMusicArtwork, readLocalPlayback as readPlayback, setLocalPlayerEnabled } from "./music-player.mjs";
+import type { MusicAction } from "./music-player.mjs";
+import type { LocalMusicArtworkRequest } from "./music-player.mjs";
 import type { MusicArtworkRequest } from "./music-artwork.mjs";
+import { normalizeVoiceCommand, normalizeVoiceSnapshot, voiceCommandIsCurrent } from "./voice-state.mjs";
+import type { VoiceCommand, VoiceSnapshot } from "./voice-state.mjs";
 
 // Read only the installed companion's local pairing file, never Discord credentials.
 function companionRoot() {
@@ -37,4 +43,69 @@ export function saveAgentSettings(_event: Electron.IpcMainInvokeEvent, input: Ag
 export function openNamePermissions(_event: Electron.IpcMainInvokeEvent) {
     if (process.platform !== "darwin") return;
     return shell.openExternal("x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility");
+}
+
+export function getApplicationId(_event: Electron.IpcMainInvokeEvent) { return readLocalPairing(companionRoot())?.applicationId ?? ""; }
+export function readLocalPlayback(_event: Electron.IpcMainInvokeEvent) { return readPlayback(companionRoot()); }
+export function setLocalPlayer(_event: Electron.IpcMainInvokeEvent, enabled: boolean) { return setLocalPlayerEnabled(companionRoot(), enabled); }
+export function controlMusic(_event: Electron.IpcMainInvokeEvent, action: MusicAction) { return issueMusicControl(companionRoot(), action); }
+export function getLocalMusicArtwork(_event: Electron.IpcMainInvokeEvent, input: LocalMusicArtworkRequest) { return readLocalMusicArtwork(companionRoot(), input); }
+
+function privateVoiceFile(name: string, limit: number) {
+    const root = companionRoot();
+    const folder = lstatSync(root);
+    if (!folder.isDirectory() || folder.isSymbolicLink()
+        || (process.platform !== "win32" && ((folder.mode & 0o077) !== 0 || folder.uid !== process.getuid?.()))) throw Error("Private voice state unavailable");
+    const path = join(root, name);
+    let stat;
+    try { stat = lstatSync(path); }
+    catch (error) { if (errorCode(error) === "ENOENT") return { path, value: null }; throw error; }
+    if (!stat.isFile() || stat.isSymbolicLink() || stat.size > limit
+        || (process.platform !== "win32" && ((stat.mode & 0o077) !== 0 || stat.uid !== process.getuid?.()))) throw Error("Private voice state unavailable");
+    return { path, value: JSON.parse(readFileSync(path, "utf8")) };
+}
+
+function writePrivateVoice(name: string, value: unknown) {
+    const root = companionRoot();
+    const folder = lstatSync(root);
+    if (!folder.isDirectory() || folder.isSymbolicLink()
+        || (process.platform !== "win32" && ((folder.mode & 0o077) !== 0 || folder.uid !== process.getuid?.()))) throw Error("Private voice state unavailable");
+    const destination = join(root, name);
+    try {
+        const existing = lstatSync(destination);
+        if (!existing.isFile() || existing.isSymbolicLink()
+            || (process.platform !== "win32" && ((existing.mode & 0o077) !== 0 || existing.uid !== process.getuid?.()))) throw Error("Private voice state unavailable");
+    } catch (error) { if (errorCode(error) !== "ENOENT") throw error; }
+    const temporary = join(root, `.voice.${randomUUID()}.tmp`);
+    try {
+        writeFileSync(temporary, JSON.stringify(value) + "\n", { flag: "wx", mode: 0o600 });
+        renameSync(temporary, destination);
+    } finally { try { unlinkSync(temporary); } catch { /* Already renamed or not created. */ } }
+}
+
+function errorCode(error: unknown): string | undefined {
+    if (!(error instanceof Error) || !("code" in error)) return undefined;
+    return typeof error.code === "string" ? error.code : undefined;
+}
+
+export function writeVoiceState(_event: Electron.IpcMainInvokeEvent, input: VoiceSnapshot | null) {
+    if (input === null) return clearVoiceState();
+    const state = normalizeVoiceSnapshot(input);
+    if (!state) throw Error("Invalid voice state");
+    writePrivateVoice("voice.local.json", state);
+    return state;
+}
+
+export function clearVoiceState(_event?: Electron.IpcMainInvokeEvent) {
+    const { path } = privateVoiceFile("voice.local.json", 4096);
+    try { unlinkSync(path); } catch (error) { if (errorCode(error) !== "ENOENT") throw error; }
+}
+
+export function takeVoiceHUDCommand(_event: Electron.IpcMainInvokeEvent, channelId: string): VoiceCommand | null {
+    if (typeof channelId !== "string" || !/^\d{17,20}$/.test(channelId)) return null;
+    const { path, value } = privateVoiceFile("voice-command.local.json", 1024);
+    if (!value) return null;
+    const command = normalizeVoiceCommand(value);
+    try { unlinkSync(path); } catch (error) { if (errorCode(error) !== "ENOENT") throw error; }
+    return voiceCommandIsCurrent(command, channelId) ? command : null;
 }

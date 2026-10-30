@@ -11,8 +11,9 @@ import { DiscordRPC } from './rpc.mjs';
 import { PresenceBridge } from './websocket.mjs';
 import { UsageTracker } from './usage.mjs';
 import { createMusicProvider, selectMusicActivity } from './music.mjs';
+import { clearLocalPlayback, readLocalPlayerEnabled, writeLocalPlayback } from './local-music.mjs';
 import { OutputController } from './output.mjs';
-import { readPower, saverActive } from './power.mjs';
+import { readPower, saverActive, musicSuspended } from './power.mjs';
 import { startSettingsServer } from './settings-server.mjs';
 
 const args = process.argv.slice(2);
@@ -36,10 +37,16 @@ const bridge = useVencord ? new PresenceBridge(bridgeConfig.token, option('--bri
 if (bridge) await bridge.start();
 const output = useVencord ? new OutputController({ bridge, rpc, mode: () => engine.config.output }) : null;
 let last = undefined, lastInput = Date.now(), busy = false, queued = undefined, stopping = false;
-let latest, child, source, deadline, configWatcher, reloadTimer, statusKey, lastStatus = 0, currentActivity = null;
+let latest, child, source, deadline, configWatcher, reloadTimer, musicReloadTimer, statusKey, lastStatus = 0, currentActivity = null;
 let musicStatus = { available: false };
+let localMusicEnabled = false;
 const music = createMusicProvider({
   onChange: () => { if (latest) void receive(currentSnapshot(), false); },
+  onPlayback: playback => {
+    if (!root) return;
+    try { if (localMusicEnabled && playback) writeLocalPlayback(root, playback); else clearLocalPlayback(root); }
+    catch { /* Local playback details are optional; public presence remains independent. */ }
+  },
   onStatus: status => {
     musicStatus = { available: !['error', 'stopped'].includes(status.state), ...(status.reason ? { error: status.reason } : {}) };
     if (latest) void receive(currentSnapshot(), false);
@@ -103,10 +110,10 @@ async function receive(snapshot, fromDetector = true) {
     }
   } finally { busy = false; }
 }
-// Battery saver: no music polling and no AI wording while on low power. Also entered if this process uses too much CPU.
+// Automatic battery saving pauses AI work; explicit saving and CPU protection also stop Music.
 let power = null, saver = false, selfProtect = false, perf = { cpuPercent: 0, rssMB: 0 }, busyMinutes = 0, lastCpu = process.cpuUsage(), lastSample = Date.now();
 function applyMusic() {
-  if (args.includes('--detect') && engine.config.enabled && engine.config.music.enabled && !saver) music.start(); else music.stop();
+  if (args.includes('--detect') && !musicSuspended(engine.config.power.saver, selfProtect) && (localMusicEnabled || (engine.config.enabled && engine.config.music.enabled))) music.start(); else music.stop();
 }
 async function sample() {
   power = await readPower();
@@ -116,7 +123,8 @@ async function sample() {
   busyMinutes = perf.cpuPercent > 3 ? busyMinutes + 1 : 0;
   if (busyMinutes >= 2) selfProtect = true;
   const next = saverActive(engine.config.power.saver, power) || selfProtect;
-  if (next !== saver) { saver = next; engine.powerSaver = saver; applyMusic(); saveStatus(true); }
+  if (next !== saver) { saver = next; engine.powerSaver = saver; saveStatus(true); }
+  applyMusic();
 }
 const sampler = setInterval(() => void sample(), 60000);
 function reloadConfig() {
@@ -127,6 +135,8 @@ function reloadConfig() {
     }
     engine.config = validateConfig(configPath ? JSON.parse(readFileSync(configPath, 'utf8')) : {});
   } catch { engine.config = validateConfig({ enabled: false }); }
+  localMusicEnabled = Boolean(root && readLocalPlayerEnabled(root));
+  if (!localMusicEnabled) { try { clearLocalPlayback(root); } catch { /* A malformed private file is left untouched. */ } }
   applyMusic();
   child?.kill('SIGUSR1');
   if (latest !== undefined) void receive(currentSnapshot(), false);
@@ -135,7 +145,17 @@ reloadConfig();
 void sample();
 const settings = args.includes('--settings') && root ? await startSettingsServer({ root, ...(option('--settings-port') ? { port: Number(option('--settings-port')) } : {}) }).catch(() => null) : null;
 if (configPath) configWatcher = watch(dirname(configPath), (_event, file) => {
-  if (file && file.toString() !== basename(configPath)) return;
+  const name = file?.toString();
+  if (name === 'music.local.settings.json') {
+    clearTimeout(musicReloadTimer);
+    musicReloadTimer = setTimeout(() => {
+      localMusicEnabled = readLocalPlayerEnabled(root);
+      if (!localMusicEnabled) { try { clearLocalPlayback(root); } catch { /* Leave malformed private state untouched. */ } }
+      applyMusic();
+    }, 30);
+    return;
+  }
+  if (name && name !== basename(configPath)) return;
   clearTimeout(reloadTimer); reloadTimer = setTimeout(reloadConfig, 30);
 });
 emit(null);
@@ -162,7 +182,7 @@ const watchdog = setInterval(() => {
 }, 15000);
 async function shutdown(code = 0) {
   if (stopping) return;
-  stopping = true; clearInterval(watchdog); clearTimeout(deadline); clearTimeout(reloadTimer); configWatcher?.close(); music.stop(); lines.close(); child?.kill();
+  stopping = true; clearInterval(watchdog); clearTimeout(deadline); clearTimeout(reloadTimer); clearTimeout(musicReloadTimer); configWatcher?.close(); music.stop(); lines.close(); child?.kill();
   track('suspend'); emit(null); saveStatus(true);
   clearInterval(sampler); settings?.close(); if (output) await output.stop(); else { await rpc?.stop(); await bridge?.stop(); } process.exit(code);
 }

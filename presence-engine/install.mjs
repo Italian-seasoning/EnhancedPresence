@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { randomBytes } from 'node:crypto';
 import { validateConfig } from './profiles.mjs';
 import { installHooks, removeHooks, codexEvents } from './hooks.mjs';
+import { APPLE_MUSIC_AUTOMATION_DESCRIPTION } from '../shared/helper-metadata.mjs';
 
 // Install the local companion only. Vencord's plugin is built and enabled separately.
 if (process.platform !== 'darwin') throw Error('The native app detector currently supports macOS.');
@@ -159,7 +160,7 @@ if (helper) {
   mkdirSync(join(app, 'Contents', 'MacOS'), { recursive: true });
   mkdirSync(join(app, 'Contents', 'Resources'), { recursive: true });
   cpSync(join(source, 'assets', 'AppIcon.icns'), join(app, 'Contents', 'Resources', 'AppIcon.icns'));
-  writeFileSync(join(app, 'Contents', 'Info.plist'), `<?xml version="1.0" encoding="UTF-8"?>\n<plist version="1.0"><dict><key>CFBundleIdentifier</key><string>app.enhancedpresence.helper</string><key>CFBundleName</key><string>EnhancedPresence Helper</string><key>CFBundleIconFile</key><string>AppIcon</string><key>CFBundleExecutable</key><string>EnhancedPresenceHelper</string><key>CFBundlePackageType</key><string>APPL</string><key>LSUIElement</key><true/><key>NSAppTransportSecurity</key><dict><key>NSAllowsLocalNetworking</key><true/></dict></dict></plist>\n`);
+  writeFileSync(join(app, 'Contents', 'Info.plist'), `<?xml version="1.0" encoding="UTF-8"?>\n<plist version="1.0"><dict><key>CFBundleIdentifier</key><string>app.enhancedpresence.helper</string><key>CFBundleName</key><string>EnhancedPresence Helper</string><key>CFBundleIconFile</key><string>AppIcon</string><key>CFBundleExecutable</key><string>EnhancedPresenceHelper</string><key>CFBundlePackageType</key><string>APPL</string><key>LSUIElement</key><true/><key>NSAppleEventsUsageDescription</key><string>${xml(APPLE_MUSIC_AUTOMATION_DESCRIPTION)}</string><key>NSAppTransportSecurity</key><dict><key>NSAllowsLocalNetworking</key><true/></dict></dict></plist>\n`);
   cpSync(helperBinary, `${exe}.new`); renameSync(`${exe}.new`, exe);
   execFileSync('codesign', ['--force', '--sign', '-', app], { stdio: 'ignore' });
   args.unshift(exe);
