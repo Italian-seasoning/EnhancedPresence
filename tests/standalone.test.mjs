@@ -48,9 +48,9 @@ test('battery saver rules', () => {
 
 test('performance parsing reads CPU time and keeps only our processes', () => {
   assert.equal(parseCpuTime('1:02.50'), 62.5); assert.equal(parseCpuTime('1-00:00:01'), 86401); assert.ok(Number.isNaN(parseCpuTime('x')));
-  const ps = ' 10 51200 0:01.20 /opt/homebrew/bin/node /x/presence-engine/main.mjs --detect\n 11 8192 0:00.40 /x/build/detector\n 12 99999 5:00.00 /usr/bin/other\n';
+  const ps = ' 10 51200 0:01.20 /opt/homebrew/bin/node /x/presence-engine/main.mjs --detect\n 11 8192 0:00.40 /x/build/detector\n 12 99999 5:00.00 /usr/bin/other\n 13 20480 0:00.20 /usr/bin/perl /x/vendor/mediaremote-adapter/bin/mediaremote-adapter.pl stream\n 14 16384 0:03.55 /usr/sbin/mediaremoted\n 15 12000 0:00.70 /System/Library/PrivateFrameworks/MediaRemote.framework/Support/mediaremoteagent\n';
   const found = parsePs(ps);
-  assert.deepEqual(found.map(p => p.pid), [10, 11]);
+  assert.deepEqual(found.map(p => p.pid), [10, 11, 13]);
   assert.equal(found[0].rssMB, 50);
 });
 

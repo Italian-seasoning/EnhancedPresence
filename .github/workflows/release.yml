@@ -1,5 +1,16 @@
 name: macOS beta release
 on:
+  pull_request:
+    paths:
+      - '.github/workflows/release.yml'
+      - 'native/**'
+      - 'presence-engine/**'
+      - 'scripts/**'
+      - 'shared/**'
+      - 'vendor/**'
+      - 'vencord-plugin/**'
+      - 'tests/**'
+      - 'package.json'
   push:
     tags: ['v*']
   workflow_dispatch:
@@ -30,13 +41,13 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ inputs.tag || github.ref_name }}
+          ref: ${{ inputs.tag || github.ref }}
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 24
       - name: Validate release version and test
         run: |
-          node --input-type=module -e 'import fs from "node:fs"; const v=JSON.parse(fs.readFileSync("package.json")).version; if(process.env.RELEASE_TAG !== `v${v}`) throw Error("Tag does not match package version");'
+          node --input-type=module -e 'import fs from "node:fs"; const v=JSON.parse(fs.readFileSync("package.json")).version; if(process.env.GITHUB_EVENT_NAME !== "pull_request" && process.env.RELEASE_TAG !== `v${v}`) throw Error("Tag does not match package version");'
           npm test
       - name: Build tested Vencord with the plugin
         run: |
@@ -70,6 +81,7 @@ jobs:
           retention-days: 14
 
   publish:
+    if: github.event_name != 'pull_request'
     needs: build
     runs-on: ubuntu-latest
     permissions:
