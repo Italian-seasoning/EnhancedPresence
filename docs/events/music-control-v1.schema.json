@@ -1,0 +1,142 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:enhanced-presence:music-control:1",
+  "title": "Helper-owned Apple Music control",
+  "description": "Private local request/response files, never a network endpoint. The EnhancedPresence support directory must be owner-owned mode 0700; requests/responses and music.control.lock must be regular non-symlink owner-owned files mode 0600. All timestamps are Unix epoch milliseconds. The local player must be enabled. Only the named native helper executes fixed Apple Events targeted at com.apple.Music; no global media-key fallback, script text, bundle identifier, URL or executable can be supplied by a caller. NSAppleEventsUsageDescription is mandatory in the helper app's Info.plist. One request at a time across stable/Canary/PTB processes: create music.control.lock exclusively before publishing the request; its lease ID and timestamp must match the request. Claim requests within 10 seconds and recheck that age before beginning the permission preflight. Trigger any Automation prompt with a fixed harmless Music name query, then recheck the enabled setting, matching live lease, and absolute 60-second deadline before issuing the playback action. After the permission preflight, recheck the current media player using the fixed local MediaRemote read API and require Apple Music; revalidate the lease/deadline/enabled state after that read. Playback itself is always an app-addressed Apple Event, never a global media command. The native client waits at most 60 seconds for the matching response. Client completion/cancellation removes only its own lease; a validated abandoned lease may be reclaimed after 65 seconds. A missing, replaced, stale or cancelled lease forbids playback, including after a delayed permission prompt. Responses expire after 60 seconds. Invalid requests fail closed.",
+  "oneOf": [
+    {
+      "$ref": "#/$defs/request"
+    },
+    {
+      "$ref": "#/$defs/response"
+    },
+    {
+      "$ref": "#/$defs/lease"
+    }
+  ],
+  "$defs": {
+    "lease": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "version",
+        "id",
+        "createdAt"
+      ],
+      "properties": {
+        "version": {
+          "const": 1
+        },
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "maxLength": 36
+        },
+        "createdAt": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        }
+      }
+    },
+    "request": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "version",
+        "id",
+        "action",
+        "createdAt"
+      ],
+      "properties": {
+        "version": {
+          "const": 1
+        },
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "maxLength": 36
+        },
+        "action": {
+          "enum": [
+            "play",
+            "pause",
+            "next",
+            "previous"
+          ]
+        },
+        "createdAt": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        }
+      }
+    },
+    "response": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "version",
+        "id",
+        "ok",
+        "reason",
+        "updatedAt"
+      ],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "ok": {
+                "const": true
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "reason": {
+                "const": "applied"
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "reason": {
+                "enum": [
+                  "permission-required",
+                  "disabled",
+                  "control-failed"
+                ]
+              }
+            }
+          }
+        }
+      ],
+      "properties": {
+        "version": {
+          "const": 1
+        },
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "maxLength": 36
+        },
+        "ok": {
+          "type": "boolean"
+        },
+        "reason": {
+          "enum": [
+            "applied",
+            "permission-required",
+            "disabled",
+            "control-failed"
+          ]
+        },
+        "updatedAt": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        }
+      }
+    }
+  }
+}

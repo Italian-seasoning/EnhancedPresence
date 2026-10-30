@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { OutputController } from '../presence-engine/output.mjs';
-import { parsePower, saverActive } from '../presence-engine/power.mjs';
+import { parsePower, saverActive, musicSuspended } from '../presence-engine/power.mjs';
 import { parseCpuTime, parsePs } from '../presence-engine/perf.mjs';
 import { validateConfig } from '../presence-engine/profiles.mjs';
 
@@ -44,6 +44,14 @@ test('battery saver rules', () => {
   assert.equal(saverActive('auto', { onBattery: false, percent: 100, lowPower: true }), true);
   assert.equal(parsePower('', '').onBattery, false);
   assert.equal(saverActive('off', power), false); assert.equal(saverActive('on', null), true);
+});
+
+test('Automatic Low Power Mode keeps event-driven music while explicit saver and CPU protection suspend it', () => {
+  assert.equal(saverActive('auto', { onBattery: false, percent: 100, lowPower: true }), true);
+  assert.equal(musicSuspended('auto', false), false);
+  assert.equal(musicSuspended('off', false), false);
+  assert.equal(musicSuspended('on', false), true);
+  for (const mode of ['auto', 'on', 'off']) assert.equal(musicSuspended(mode, true), true);
 });
 
 test('performance parsing reads CPU time and keeps only our processes', () => {

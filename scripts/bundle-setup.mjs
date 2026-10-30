@@ -58,7 +58,7 @@ const requiredFiles = [
   'Contents/Resources/runtime/node', 'Contents/Resources/presence-engine/install.mjs',
   'Contents/Resources/presence-engine/main.mjs', 'Contents/Resources/presence-engine/repair.mjs',
   'Contents/Resources/presence-engine/profiles.mjs', 'Contents/Resources/presence-engine/hooks.mjs', 'Contents/Resources/presence-engine/agent-hook.sh',
-  'Contents/Resources/shared/protocol.mjs', 'Contents/Resources/vendor/ws/wrapper.mjs',
+  'Contents/Resources/shared/protocol.mjs', 'Contents/Resources/shared/helper-metadata.mjs', 'Contents/Resources/vendor/ws/wrapper.mjs',
   'Contents/Resources/vendor/mediaremote-adapter/bin/mediaremote-adapter.pl', 'Contents/Resources/vendor/mediaremote-adapter/LICENSE',
   'Contents/Resources/build/detector',
   'Contents/Resources/build/MediaRemoteAdapter.framework/Versions/A/MediaRemoteAdapter',
@@ -128,6 +128,7 @@ export function validatePayload(payloadRoot, { manifestPath = join(dirname(dirna
   const executable = info.match(/<key>CFBundleExecutable<\/key>\s*<string>([^<]+)<\/string>/)?.[1];
   const bundleId = info.match(/<key>CFBundleIdentifier<\/key>\s*<string>([^<]+)<\/string>/)?.[1];
   if (bundleId !== 'app.enhancedpresence.helper' || executable !== 'EnhancedPresenceHelper' || !existsSync(safePath(root, `Contents/MacOS/${executable}`))) throw Error('Helper application bundle is incomplete.');
+  if (!info.match(/<key>NSAppleEventsUsageDescription<\/key>\s*<string>([^<]+)<\/string>/)?.[1]?.trim()) throw Error('Helper Music Automation explanation is missing.');
   const revision = readFileSync(safePath(root, 'Contents/Resources/vencord/REVISION'), 'utf8').trim();
   if (revision !== release.vencordRevision) throw Error('Prebuilt Vencord revision does not match the release manifest.');
   const renderer = readFileSync(safePath(root, 'Contents/Resources/vencord/dist/renderer.js'), 'utf8');

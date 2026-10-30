@@ -12,7 +12,7 @@ function makePayload(root) {
   const resources = [
     'runtime/node', 'presence-engine/install.mjs', 'presence-engine/repair.mjs', 'presence-engine/main.mjs',
     'presence-engine/profiles.mjs', 'presence-engine/hooks.mjs', 'presence-engine/agent-hook.sh',
-    'shared/protocol.mjs', 'vendor/ws/wrapper.mjs', 'vendor/mediaremote-adapter/bin/mediaremote-adapter.pl', 'vendor/mediaremote-adapter/LICENSE',
+    'shared/protocol.mjs', 'shared/helper-metadata.mjs', 'vendor/ws/wrapper.mjs', 'vendor/mediaremote-adapter/bin/mediaremote-adapter.pl', 'vendor/mediaremote-adapter/LICENSE',
     'build/detector', 'build/MediaRemoteAdapter.framework/Versions/A/MediaRemoteAdapter',
     'scripts/bundle-setup.mjs', 'scripts/vencord-deploy.mjs', 'scripts/install-vencord.mjs', 'tools/VencordInstallerCli-darwin',
     'vencord/package.json', 'vencord/REVISION', 'vencord/dist/patcher.js', 'vencord/dist/preload.js',
@@ -21,9 +21,10 @@ function makePayload(root) {
   const files = [...resources.map(file => `Contents/Resources/${file}`), 'Contents/Info.plist', 'Contents/MacOS/EnhancedPresenceHelper', 'Contents/_CodeSignature/CodeResources'];
   for (const file of files) {
     const path = join(root, file); mkdirSync(join(path, '..'), { recursive: true });
-    writeFileSync(path, file.endsWith('package.json') ? '{"name":"vencord"}' : file.endsWith('Info.plist') ? '<plist><dict><key>CFBundleIdentifier</key><string>app.enhancedpresence.helper</string><key>CFBundleExecutable</key><string>EnhancedPresenceHelper</string></dict></plist>' : file.endsWith('renderer.js') ? 'EnhancedPresenceUniversal' : file.endsWith('/REVISION') ? 'a'.repeat(40) : file.endsWith('/runtime/node') ? readFileSync(process.execPath) : 'fixture');
+    writeFileSync(path, file.endsWith('package.json') ? '{"name":"vencord"}' : file.endsWith('Info.plist') ? '<plist><dict><key>CFBundleIdentifier</key><string>app.enhancedpresence.helper</string><key>CFBundleExecutable</key><string>EnhancedPresenceHelper</string><key>NSAppleEventsUsageDescription</key><string>Control Music when you use the player.</string></dict></plist>' : file.endsWith('renderer.js') ? 'EnhancedPresenceUniversal' : file.endsWith('/REVISION') ? 'a'.repeat(40) : file.endsWith('/runtime/node') ? readFileSync(process.execPath) : 'fixture');
   }
   for (const name of ['install.mjs', 'profiles.mjs', 'hooks.mjs', 'agent-hook.sh', 'repair.mjs']) copyFileSync(new URL(`../presence-engine/${name}`, import.meta.url), join(root, 'Contents/Resources/presence-engine', name));
+  copyFileSync(new URL('../shared/helper-metadata.mjs', import.meta.url), join(root, 'Contents/Resources/shared/helper-metadata.mjs'));
   copyFileSync(new URL('../scripts/vencord-deploy.mjs', import.meta.url), join(root, 'Contents/Resources/scripts/vencord-deploy.mjs'));
   for (const path of ['Contents/Resources/runtime/node', 'Contents/Resources/tools/VencordInstallerCli-darwin', 'Contents/Resources/build/detector', 'Contents/Resources/build/MediaRemoteAdapter.framework/Versions/A/MediaRemoteAdapter', 'Contents/MacOS/EnhancedPresenceHelper']) chmodSync(join(root, path), 0o755);
   const fileHashes = Object.fromEntries(files.map(file => [file, createHash('sha256').update(readFileSync(join(root, file))).digest('hex')]));
@@ -57,6 +58,30 @@ test('release validation rejects symlinks that leave the signed helper bundle', 
     makePayload(payload);
     symlinkSync('/etc/passwd', join(payload, 'Contents/Resources/vendor/ws/escape'));
     assert.throws(() => validatePayload(payload, { arch: process.arch, nodeVersion: process.versions.node, macVersion: '15.0' }), /symlink/);
+  } finally { rmSync(scratch, { recursive: true, force: true }); }
+});
+
+test('payload preflight rejects a missing helper metadata dependency', () => {
+  const scratch = mkdtempSync(join(tmpdir(), 'ep-metadata-')), payload = join(scratch, 'payload/EnhancedPresence Helper.app');
+  try {
+    makePayload(payload);
+    const name = 'Contents/Resources/shared/helper-metadata.mjs', manifest = join(scratch, 'release.json');
+    const release = JSON.parse(readFileSync(manifest, 'utf8'));
+    delete release.files[name]; rmSync(join(payload, name)); writeFileSync(manifest, JSON.stringify(release));
+    assert.throws(() => validatePayload(payload, { arch: process.arch, nodeVersion: process.versions.node, macVersion: '15.0' }), /helper-metadata/);
+  } finally { rmSync(scratch, { recursive: true, force: true }); }
+});
+
+test('payload preflight requires the helper Music Automation explanation', () => {
+  const scratch = mkdtempSync(join(tmpdir(), 'ep-music-description-')), payload = join(scratch, 'payload/EnhancedPresence Helper.app');
+  try {
+    makePayload(payload);
+    const name = 'Contents/Info.plist', manifest = join(scratch, 'release.json');
+    const info = readFileSync(join(payload, name), 'utf8').replace(/<key>NSAppleEventsUsageDescription<\/key><string>[^<]*<\/string>/, '');
+    writeFileSync(join(payload, name), info);
+    const release = JSON.parse(readFileSync(manifest, 'utf8')); release.files[name] = createHash('sha256').update(info).digest('hex');
+    writeFileSync(manifest, JSON.stringify(release));
+    assert.throws(() => validatePayload(payload, { arch: process.arch, nodeVersion: process.versions.node, macVersion: '15.0' }), /Automation/);
   } finally { rmSync(scratch, { recursive: true, force: true }); }
 });
 

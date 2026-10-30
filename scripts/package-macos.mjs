@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { VENCORD_REV } from './quickstart.mjs';
+import { APPLE_MUSIC_AUTOMATION_DESCRIPTION } from '../shared/helper-metadata.mjs';
 
 export const NODE_VERSION = 'v24.22.2';
 export const MINIMUM_MACOS = '13.5';
@@ -33,7 +34,7 @@ function bundleInfo(name, executable, identifier, version, background) {
 <key>CFBundlePackageType</key><string>APPL</string><key>CFBundleIconFile</key><string>AppIcon</string>
 <key>CFBundleShortVersionString</key><string>${xml(version.split('-')[0])}</string><key>CFBundleVersion</key><string>${xml(version.split('-')[0])}</string>
 <key>LSMinimumSystemVersion</key><string>${MINIMUM_MACOS}</string><key>NSPrincipalClass</key><string>NSApplication</string>
-${background ? '<key>LSUIElement</key><true/>' : ''}<key>NSAppTransportSecurity</key><dict><key>NSAllowsLocalNetworking</key><true/></dict>
+${background ? `<key>LSUIElement</key><true/><key>NSAppleEventsUsageDescription</key><string>${xml(APPLE_MUSIC_AUTOMATION_DESCRIPTION)}</string>` : ''}<key>NSAppTransportSecurity</key><dict><key>NSAllowsLocalNetworking</key><true/></dict>
 </dict></plist>\n`;
 }
 
@@ -181,7 +182,9 @@ async function main(args = process.argv.slice(2)) {
   cleanSigningMetadata(outer);
   run('/usr/bin/codesign', ['--force', '--sign', '-', outer]);
   run('/usr/bin/codesign', ['--verify', '--deep', '--strict', outer]);
+  cpSync(join(source, 'themes', 'PresenceMessages.theme.css'), join(stage, 'PresenceMessages.theme.css'));
   writeFileSync(join(stage, 'Read Me.txt'), `Enhanced Presence ${version} — unsigned beta\n\nOpen Install Enhanced Presence.app. It installs the helper in your user Applications folder and bundles all runtime dependencies. No source build, Node installation, Xcode or administrator password is needed.\n\nmacOS may block this unsigned, unnotarized beta. No script disables Gatekeeper or clears quarantine. Only proceed if you trust this release.\n\nFirst use needs a public Discord Application ID, never an account/bot token. Review allowed apps before resuming sharing. Core app presence needs no Accessibility or screen/input monitoring.\n\nTo uninstall the companion, reopen this installer and choose Uninstall. Settings/history and Vencord remain.\n\nSource, licenses and current instructions: https://github.com/Italian-seasoning/EnhancedPresence\n`);
+  writeFileSync(join(stage, 'Messages theme.txt'), 'Optional Messages for Discord theme\n\nIn Discord, open Settings > Vencord > Themes > Open Themes Folder. Copy PresenceMessages.theme.css into that folder, then select it in Themes. Turn off other full-client themes before enabling Messages. Your other theme files and settings are kept.\n\nBlue outgoing bubbles use Enhanced Presence+ or the built-in Vencord ThemeAttributes plugin. No remote CSS, fonts or images are loaded by the theme. The Plus installer does not select or enable themes.\n');
   const name = `EnhancedPresence-${version}-macOS-${arch}.dmg`, dmg = join(output, name);
   run('/usr/bin/hdiutil', ['create', '-volname', 'Enhanced Presence', '-srcfolder', stage, '-format', 'UDZO', '-ov', dmg]);
   writeFileSync(`${dmg}.sha256`, `${digest(readFileSync(dmg))}  ${name}\n`);

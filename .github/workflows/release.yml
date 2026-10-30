@@ -10,6 +10,7 @@ on:
       - 'vendor/**'
       - 'vencord-plugin/**'
       - 'tests/**'
+      - 'themes/**'
       - 'package.json'
   push:
     tags: ['v*']
@@ -104,8 +105,10 @@ jobs:
           cd release
           sha256sum --check *.sha256
           cat *.sha256 > SHA256SUMS
+          cp ../themes/PresenceMessages.theme.css .
+          sha256sum PresenceMessages.theme.css >> SHA256SUMS
           if gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             echo "Release already exists; refusing to overwrite published assets."
             exit 1
           fi
-          gh release create "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --verify-tag --title "Enhanced Presence ${RELEASE_TAG#v} — unsigned beta" --prerelease --notes-file ../RELEASE_NOTES.md *.dmg SHA256SUMS
+          gh release create "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --verify-tag --title "Enhanced Presence ${RELEASE_TAG#v} — unsigned beta" --prerelease --notes-file ../RELEASE_NOTES.md *.dmg PresenceMessages.theme.css SHA256SUMS

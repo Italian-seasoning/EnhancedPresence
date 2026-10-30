@@ -1,9 +1,9 @@
 <div align="center">
   <img src="assets/icon.png" alt="" width="96" />
 
-# Enhanced Presence
+# Enhanced Presence+
 
-Your apps, activity and task timer on Discord.
+Your apps, Apple Music and personal Discord tools.
 
 macOS 13.5+ · Custom Vencord plugin · Unsigned beta · GPL-3.0-or-later
 
@@ -12,12 +12,12 @@ macOS 13.5+ · Custom Vencord plugin · Unsigned beta · GPL-3.0-or-later
 
 ## Download and install
 
-[**Download the unsigned beta**](https://github.com/Italian-seasoning/EnhancedPresence/releases/tag/v0.9.0-beta.1)
+[**Download the unsigned Plus beta**](https://github.com/Italian-seasoning/EnhancedPresence/releases/tag/v0.10.0-beta.1)
 
 | Your Mac | Download |
 | --- | --- |
-| Apple Silicon (M-series) | [Apple Silicon installer](https://github.com/Italian-seasoning/EnhancedPresence/releases/download/v0.9.0-beta.1/EnhancedPresence-0.9.0-beta.1-macOS-arm64.dmg) |
-| Intel | [Intel installer](https://github.com/Italian-seasoning/EnhancedPresence/releases/download/v0.9.0-beta.1/EnhancedPresence-0.9.0-beta.1-macOS-x64.dmg) |
+| Apple Silicon (M-series) | [Apple Silicon installer](https://github.com/Italian-seasoning/EnhancedPresence/releases/download/v0.10.0-beta.1/EnhancedPresence-0.10.0-beta.1-macOS-arm64.dmg) |
+| Intel | [Intel installer](https://github.com/Italian-seasoning/EnhancedPresence/releases/download/v0.10.0-beta.1/EnhancedPresence-0.10.0-beta.1-macOS-x64.dmg) |
 
 **This beta is unsigned and unnotarized. macOS may block it.** Only install it if you trust the release. The installer never disables Gatekeeper, removes quarantine, requests an administrator password, or grants privacy permissions. Checksums accompany the downloads.
 
@@ -33,6 +33,27 @@ Enhanced Presence is independent of Discord and Vencord. Vencord modifies Discor
 
 ## What it does
 
+Open **Presence+** beside the Discord message box for the Plus tools:
+
+- Apple Music player with local album artwork and playback controls, independent of public activity sharing.
+- Album-derived accents confined to the player.
+- Private message bookmarks with notes, tags, search and account-scoped import/export.
+- Named workspaces containing channel and DM shortcuts.
+- Desktop notification rules with literal keyword/person/channel matching and a grouped inbox.
+- Voice controls and a floating native HUD, available from the helper menu's **Show Voice HUD** item.
+
+Each module can be switched off. Existing Vencord settings, other plugin switches and enabled themes remain in place. Plus never selects a theme or restyles Discord's chat surfaces.
+
+### Optional Messages theme
+
+**Messages for Discord** is a separate compact theme with macOS system typography, blue outgoing bubbles, neutral incoming bubbles and frosted navigation, menus, settings and player surfaces in Discord's existing layout. It supports light/dark colors and Reduce Transparency, and loads no remote CSS, fonts or images.
+
+1. Open **Settings → Vencord → Themes → Open Themes Folder**.
+2. Copy **PresenceMessages.theme.css** from the DMG or [release download](https://github.com/Italian-seasoning/EnhancedPresence/releases/download/v0.10.0-beta.1/PresenceMessages.theme.css) into that folder.
+3. Turn off other full-client themes, then enable **Messages for Discord**. Turn it off to return to your previous theme. Theme files and options are preserved.
+
+Blue outgoing bubbles use Plus's hidden self-message marker or Vencord's built-in **ThemeAttributes** plugin. The theme can be used without the companion by enabling ThemeAttributes. Installation never changes your theme selection.
+
 - Allowed app names, artwork and elapsed time.
 - Compact native menu with connection, current activity, Pause and Settings.
 - Optional Claude Code/Codex task status such as Editing code, Reviewing code and Running tests. Fixed phrases require no model calls.
@@ -46,6 +67,8 @@ Vencord supports app names and artwork. Standalone mode avoids modifying Discord
 ## Privacy and efficiency
 
 Core app presence needs **no Accessibility, Screen Recording, Input Monitoring, Automation or Full Disk Access**. Do not grant these permissions to Node, Terminal or your shell for this app.
+
+The local Apple Music player reads metadata and embedded covers on the Mac. Its optional playback buttons use fixed Apple Events addressed to Music and may ask you to allow **EnhancedPresence Helper** to control **Music** in macOS Automation. This grant is only for transport controls; detection, covers and public presence work without it. The helper rejects cancelled or expired control requests.
 
 Project/document names are optional, per app and off by default. Some supported apps need Accessibility for the named EnhancedPresence Helper. If names are unavailable, leave them off; generic presence still works. Settings and pairing remain local. The services use authenticated loopback connections and reject foreign origins. There is no telemetry or account login.
 

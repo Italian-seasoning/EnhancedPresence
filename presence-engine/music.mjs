@@ -1,6 +1,7 @@
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { blocked } from './profiles.mjs';
+import { normalizeLocalPlayback } from './local-music.mjs';
 
 const playerNames = {
   'com.apple.Music': 'Apple Music', 'com.spotify.client': 'Spotify',
@@ -64,12 +65,13 @@ export function normalizeNowPlaying(value, now = Date.now()) {
   return result;
 }
 
-export function createMusicProvider({ onChange = () => {}, onStatus = () => {},
-  spawnProcess = spawn, now = Date.now, startupTimeoutMs = 10000,
+export function createMusicProvider({ onChange = () => {}, onStatus = () => {}, onPlayback = () => {},
+  spawnProcess = spawn, now = Date.now, startupTimeoutMs = 10000, playbackHeartbeatMs = 30000,
   adapterPath = fileURLToPath(new URL('../vendor/mediaremote-adapter/bin/mediaremote-adapter.pl', import.meta.url)),
   frameworkPath = fileURLToPath(new URL('../build/MediaRemoteAdapter.framework', import.meta.url))
 } = {}) {
-  let child = null, current = null, identity = null, startupTimer = null, lastStatus = '';
+  let child = null, current = null, identity = null, startupTimer = null, playbackTimer = null, lastStatus = '';
+  let playbackIdentity = null, playbackUpdatedAt = 0, currentPlayback = null;
   function status(state, reason) {
     const value = { state, ...(reason ? { reason } : {}) };
     const encoded = JSON.stringify(value);
@@ -80,14 +82,38 @@ export function createMusicProvider({ onChange = () => {}, onStatus = () => {},
     current = value;
     onChange(value);
   }
+  function publishPlayback(value) {
+    const playback = value ? normalizeLocalPlayback(value, now()) : null;
+    currentPlayback = playback;
+    const key = playback && JSON.stringify([playback.appId, playback.title, playback.artist, playback.album,
+      playback.artworkUrl, playback.playing, playback.playbackRate, playback.durationSeconds]);
+    const time = now();
+    if (key === playbackIdentity && (key === null || time - playbackUpdatedAt < 5000)) return;
+    playbackIdentity = key;
+    playbackUpdatedAt = time;
+    onPlayback(playback);
+  }
+  function refreshPlayback() {
+    if (!child || !currentPlayback) return;
+    const time = now();
+    let elapsedSeconds = currentPlayback.elapsedSeconds;
+    if (currentPlayback.playing) elapsedSeconds += Math.max(0, (time - currentPlayback.updatedAt) / 1000) * currentPlayback.playbackRate;
+    if (currentPlayback.durationSeconds !== undefined) elapsedSeconds = Math.min(currentPlayback.durationSeconds, elapsedSeconds);
+    currentPlayback = { ...currentPlayback, elapsedSeconds, updatedAt: time };
+    playbackUpdatedAt = time;
+    onPlayback(currentPlayback);
+  }
   function terminate() {
     const old = child;
     child = null;
     clearTimeout(startupTimer);
     startupTimer = null;
+    clearInterval(playbackTimer);
+    playbackTimer = null;
     old?.kill('SIGTERM');
     identity = null;
     publish(null);
+    publishPlayback(null);
   }
   function fail(reason) { terminate(); status('error', reason); }
   return {
@@ -102,6 +128,10 @@ export function createMusicProvider({ onChange = () => {}, onStatus = () => {},
         { stdio: ['ignore', 'pipe', 'pipe'] });
       } catch { fail('provider-unavailable'); return; }
       child = process;
+      if (typeof playbackHeartbeatMs === 'number' && playbackHeartbeatMs > 0) {
+        playbackTimer = setInterval(refreshPlayback, playbackHeartbeatMs);
+        playbackTimer.unref?.();
+      }
       let buffer = '';
       startupTimer = setTimeout(() => { if (child === process) fail('provider-timeout'); }, startupTimeoutMs);
       startupTimer.unref?.();
@@ -124,6 +154,7 @@ export function createMusicProvider({ onChange = () => {}, onStatus = () => {},
           clearTimeout(startupTimer);
           startupTimer = null;
           const value = normalizeNowPlaying(message.payload, now());
+          publishPlayback(message.payload);
           const nextIdentity = value ? JSON.stringify([value.appId, value.details, value.state,
             text(message.payload.uniqueIdentifier)]) : null;
           if (value && current && nextIdentity === identity
