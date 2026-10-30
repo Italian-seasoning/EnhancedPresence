@@ -1,7 +1,7 @@
 import { execFileSync } from 'node:child_process';
 import { cpSync, mkdirSync, existsSync, readFileSync, writeFileSync, chmodSync, lstatSync, renameSync, rmSync } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { randomBytes } from 'node:crypto';
 import { validateConfig } from './profiles.mjs';
@@ -10,19 +10,95 @@ import { installHooks, removeHooks, codexEvents } from './hooks.mjs';
 // Install the local companion only. Vencord's plugin is built and enabled separately.
 if (process.platform !== 'darwin') throw Error('The native app detector currently supports macOS.');
 const flags = process.argv.slice(2), helper = flags.includes('--helper'), start = !flags.includes('--no-start'), hooks = flags.includes('--with-hooks') && !flags.includes('--no-hooks');
+const value = name => { const index = flags.indexOf(name); return index < 0 ? undefined : flags[index + 1]; };
+const home = value('--home') ?? homedir();
 // Installing means accepting the Terms of Use. Interactive runs ask; scripts pass --accept-terms.
 if (!flags.includes('--remove-hooks') && !flags.includes('--accept-terms')) {
   console.log('Enhanced Presence modifies the Discord client through Vencord, which is against Discord\'s Terms of Service, and is provided without warranty. You use it at your own risk. Read TERMS.md before continuing.');
   const answer = process.stdin.isTTY ? (await (await import('node:readline/promises')).createInterface({ input: process.stdin, output: process.stdout }).question('Type "yes" to accept the Terms of Use: ')).trim().toLowerCase() : '';
   if (answer !== 'yes') { console.error('Terms not accepted; nothing was installed. Rerun and type "yes", or pass --accept-terms.'); process.exit(1); }
 }
-const claudeSettings = join(homedir(), '.claude', 'settings.json');
-const codexHooks = join(homedir(), '.codex', 'hooks.json');
+const claudeSettings = join(home, '.claude', 'settings.json');
+const codexHooks = join(home, '.codex', 'hooks.json');
 if (flags.includes('--remove-hooks')) { removeHooks(claudeSettings); removeHooks(codexHooks); console.log('Removed the EnhancedPresence hook from Claude Code and Codex.'); process.exit(0); }
 const source = fileURLToPath(new URL('../', import.meta.url));
-const root = join(homedir(), 'Library', 'Application Support', 'EnhancedPresence');
-const agents = join(homedir(), 'Library', 'LaunchAgents');
+const root = join(home, 'Library', 'Application Support', 'EnhancedPresence');
+const agents = join(home, 'Library', 'LaunchAgents');
 const node = existsSync('/opt/homebrew/bin/node') ? '/opt/homebrew/bin/node' : process.execPath;
+if (flags.includes('--prebuilt')) {
+  const runtime = value('--node-path'), helperSource = value('--helper-app');
+  if (!runtime || !isAbsolute(runtime) || !existsSync(runtime) || !helperSource || !isAbsolute(helperSource) || !existsSync(join(helperSource, 'Contents', 'Info.plist'))) throw Error('Prebuilt installation needs a bundled Node runtime and helper app.');
+  const applicationId = flags.find(x => !x.startsWith('--'));
+  if (!/^\d{17,20}$/.test(applicationId || '')) throw Error('First install: pass a numeric Discord application ID (never a token).');
+  const configPath = join(root, 'config.local.json'), bridgePath = join(root, 'bridge.local.json');
+  mkdirSync(root, { recursive: true, mode: 0o700 });
+  if (!lstatSync(root).isDirectory() || lstatSync(root).isSymbolicLink()) throw Error('Companion destination must be a regular directory.');
+  for (const file of [configPath, bridgePath]) if (existsSync(file) && (!lstatSync(file).isFile() || lstatSync(file).isSymbolicLink())) throw Error('Settings must be regular local files.');
+  const config = existsSync(configPath) ? validateConfig(JSON.parse(readFileSync(configPath, 'utf8'))) : validateConfig({ enabled: false });
+  config.output = flags.includes('--standalone') ? 'ipc' : 'vencord';
+  validateConfig(config);
+  const bridge = existsSync(bridgePath) ? JSON.parse(readFileSync(bridgePath, 'utf8')) : { token: randomBytes(32).toString('hex') };
+  if (!/^[a-f0-9]{64}$/.test(bridge.token)) throw Error('Existing pairing configuration is invalid; it was preserved.');
+  const previousApplicationId = bridge.applicationId; bridge.applicationId = applicationId;
+  for (const directory of ['presence-engine', 'shared', 'vendor/ws', 'vendor/mediaremote-adapter/bin', 'vendor/mediaremote-adapter/LICENSE']) {
+    const from = join(source, directory), to = join(root, directory);
+    if (!existsSync(from)) throw Error(`Prebuilt payload is missing ${directory}.`);
+    cpSync(from, to, { recursive: true, verbatimSymlinks: true,
+      filter: (src, dest) => !existsSync(dest) || !lstatSync(src).isFile() || !lstatSync(dest).isFile() || !readFileSync(src).equals(readFileSync(dest)) });
+  }
+  const build = join(root, 'build'); mkdirSync(build, { recursive: true, mode: 0o700 });
+  if (!lstatSync(build).isDirectory() || lstatSync(build).isSymbolicLink()) throw Error('Build destination must be a regular directory.');
+  const detector = join(source, 'build', 'detector');
+  if (!existsSync(detector)) throw Error('Prebuilt payload is missing build/detector.');
+  cpSync(detector, join(build, 'detector'));
+  const sourceFramework = join(source, 'build/MediaRemoteAdapter.framework'), framework = join(build, 'MediaRemoteAdapter.framework');
+  if (!existsSync(sourceFramework)) throw Error('Prebuilt payload is missing build/MediaRemoteAdapter.framework.');
+  const stage = join(build, `.MediaRemoteAdapter-${randomBytes(8).toString('hex')}.framework`), previous = `${stage}.previous`;
+  let movedPrevious = false;
+  try {
+    cpSync(sourceFramework, stage, { recursive: true, verbatimSymlinks: true });
+    if (existsSync(framework)) {
+      if (!lstatSync(framework).isDirectory() || lstatSync(framework).isSymbolicLink()) throw Error('Framework destination must be a regular directory.');
+      renameSync(framework, previous); movedPrevious = true;
+    }
+    try { renameSync(stage, framework); }
+    catch (error) { if (movedPrevious) renameSync(previous, framework); throw error; }
+    if (movedPrevious) rmSync(previous, { recursive: true });
+  } finally { rmSync(stage, { recursive: true, force: true }); }
+  const app = join(home, 'Applications', 'EnhancedPresence Helper.app'); mkdirSync(dirname(app), { recursive: true });
+  if (resolve(helperSource) !== resolve(app)) {
+    const staged = `${app}.prebuilt-${process.pid}.tmp`;
+    try { cpSync(helperSource, staged, { recursive: true, verbatimSymlinks: true, dereference: false }); rmSync(app, { recursive: true, force: true }); renameSync(staged, app); }
+    finally { rmSync(staged, { recursive: true, force: true }); }
+  }
+  const configText = JSON.stringify(config, null, 2) + '\n';
+  if (!existsSync(configPath) || readFileSync(configPath, 'utf8') !== configText) {
+    const temporary = `${configPath}.${randomBytes(8).toString('hex')}.tmp`;
+    try { writeFileSync(temporary, configText, { flag: 'wx', mode: 0o600 }); renameSync(temporary, configPath); }
+    finally { rmSync(temporary, { force: true }); }
+  }
+  if (!existsSync(bridgePath) || previousApplicationId !== applicationId) writeFileSync(bridgePath, JSON.stringify(bridge, null, 2) + '\n', { mode: 0o600 });
+  chmodSync(configPath, 0o600); chmodSync(bridgePath, 0o600);
+  mkdirSync(agents, { recursive: true });
+  const xml = text => text.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;');
+  const helperExecutable = join(app, 'Contents', 'MacOS', 'EnhancedPresenceHelper');
+  const args = [helperExecutable, runtime, join(root, 'presence-engine/main.mjs'), '--detect', '--quiet', '--config', configPath,
+    '--vencord', '--activation-approved', '--bridge-config', bridgePath, '--settings'];
+  const agent = `<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n<plist version="1.0"><dict>\n<key>Label</key><string>app.enhancedpresence.engine</string>\n<key>ProgramArguments</key><array>${args.map(arg => `<string>${xml(arg)}</string>`).join('')}</array>\n<key>RunAtLoad</key><true/>\n<key>KeepAlive</key><true/>\n<key>ThrottleInterval</key><integer>30</integer>\n<key>ProcessType</key><string>Standard</string>\n<key>StandardOutPath</key><string>/dev/null</string>\n<key>StandardErrorPath</key><string>${xml(join(root, 'engine-error.log'))}</string>\n</dict></plist>\n`;
+  writeFileSync(join(agents, 'app.enhancedpresence.engine.plist'), agent, { mode: 0o600 });
+  if (start) {
+    const domain = `gui/${process.getuid()}`;
+    try { execFileSync('launchctl', ['bootout', `${domain}/app.enhancedpresence.engine`], { stdio: 'ignore' }); } catch {}
+    execFileSync('/bin/launchctl', ['bootstrap', domain, join(agents, 'app.enhancedpresence.engine.plist')], { stdio: 'inherit' });
+  }
+  if (hooks) {
+    const command = `/bin/sh "${join(root, 'presence-engine', 'agent-hook.sh')}"`;
+    installHooks(claudeSettings, command);
+    if (existsSync(join(home, '.codex'))) installHooks(codexHooks, command, codexEvents, { async: true });
+  }
+  console.log('Installed prebuilt Enhanced Presence runtime; settings, pairing and app time were preserved.');
+  process.exit(0);
+}
 if (!existsSync(join(source, 'build', 'detector'))) throw Error('Build the detector before installation.');
 if (!existsSync(join(source, 'build', 'MediaRemoteAdapter.framework'))) throw Error('Run npm run build:music before installation.');
 // Compile before changing an installation; a compiler error must not silently install a shell launcher.
@@ -79,7 +155,7 @@ const xml = value => value.replaceAll('&', '&amp;').replaceAll('<', '&lt;').repl
 const args = [node, join(root, 'presence-engine', 'main.mjs'), '--detect', '--quiet', '--config', configPath, '--vencord', '--activation-approved', '--bridge-config', bridgePath, '--settings'];
 if (helper) {
   // A named app bundle gives the engine a stable identity in macOS privacy lists and Login Items.
-  const app = join(homedir(), 'Applications', 'EnhancedPresence Helper.app'), exe = join(app, 'Contents', 'MacOS', 'EnhancedPresenceHelper');
+  const app = join(home, 'Applications', 'EnhancedPresence Helper.app'), exe = join(app, 'Contents', 'MacOS', 'EnhancedPresenceHelper');
   mkdirSync(join(app, 'Contents', 'MacOS'), { recursive: true });
   mkdirSync(join(app, 'Contents', 'Resources'), { recursive: true });
   cpSync(join(source, 'assets', 'AppIcon.icns'), join(app, 'Contents', 'Resources', 'AppIcon.icns'));
@@ -102,7 +178,7 @@ if (hooks) {
   const notes = [];
   try { installHooks(claudeSettings, command); notes.push('Claude Code: hook added to ~/.claude/settings.json (original saved as settings.json.enhancedpresence.bak).'); }
   catch (error) { notes.push(`Claude Code: not updated (${error.message}).`); }
-  if (existsSync(join(homedir(), '.codex'))) {
+  if (existsSync(join(home, '.codex'))) {
     try { installHooks(codexHooks, command, codexEvents, { async: true }); notes.push('Codex: hook added to ~/.codex/hooks.json. Codex asks you to review new hooks: open Codex and run /hooks to trust it.'); }
     catch (error) { notes.push(`Codex: not updated (${error.message}).`); }
   }

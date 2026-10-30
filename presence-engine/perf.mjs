@@ -2,7 +2,7 @@ import { execFile } from 'node:child_process';
 
 // Resource use of Enhanced Presence's own processes, measured from cumulative CPU time so a short
 // window gives a true average (ps's instantaneous %CPU is a decayed lifetime figure).
-const ours = /presence-engine\/main\.mjs|build\/detector|EnhancedPresenceHelper|mediaremote/i;
+const ours = /presence-engine\/main\.mjs|build\/detector|EnhancedPresenceHelper|mediaremote-adapter\.pl/i;
 
 export function parseCpuTime(text) {
   const match = /^(?:(\d+)-)?(?:(\d+):)?(\d+):(\d+(?:\.\d+)?)$/.exec(text.trim());

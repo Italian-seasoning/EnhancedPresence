@@ -36,17 +36,17 @@ export function stage({ dist, managed, patcher }) {
   return Object.keys(manifest).filter(name => name !== 'loader.asar');
 }
 
-export async function deploy(checkout, { home = homedir(), resources = '/Applications/Discord.app/Contents/Resources', start = true } = {}) {
+export async function deploy(checkout, { home = homedir(), resources = '/Applications/Discord.app/Contents/Resources', start = true, nodePath } = {}) {
   const root = join(home, 'Library', 'Application Support', 'EnhancedPresence'), maintenance = join(root, 'maintenance');
   const dist = join(home, 'Library', 'Application Support', 'Vencord', 'dist');
   const files = stage({ dist: join(checkout, 'dist'), managed: join(maintenance, 'managed'), patcher: join(dist, 'patcher.js') });
   cpSync(join(source, 'presence-engine', 'repair.mjs'), join(maintenance, 'repair.mjs'));
   const changed = await repair({ resources, dist, managed: join(maintenance, 'managed'), backups: join(maintenance, 'backups'), files });
-  const node = existsSync('/opt/homebrew/bin/node') ? '/opt/homebrew/bin/node' : process.execPath;
+  const node = nodePath ?? (existsSync('/opt/homebrew/bin/node') ? '/opt/homebrew/bin/node' : process.execPath);
   const xml = value => value.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
   const plist = join(home, 'Library', 'LaunchAgents', `${LABEL}.plist`);
   mkdirSync(join(home, 'Library', 'LaunchAgents'), { recursive: true });
-  writeFileSync(plist, `<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n<plist version="1.0"><dict>\n<key>Label</key><string>${LABEL}</string>\n<key>ProcessType</key><string>Background</string>\n<key>ProgramArguments</key><array><string>${xml(node)}</string><string>${xml(join(maintenance, 'repair.mjs'))}</string></array>\n<key>RunAtLoad</key><true/>\n<key>WatchPaths</key><array><string>${xml(resources)}</string><string>${xml(dist)}</string></array>\n<key>StandardErrorPath</key><string>${xml(join(maintenance, 'repair-error.log'))}</string>\n<key>StandardOutPath</key><string>/dev/null</string>\n</dict></plist>\n`, { mode: 0o600 });
+  writeFileSync(plist, `<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n<plist version="1.0"><dict>\n<key>Label</key><string>${LABEL}</string>\n<key>ProcessType</key><string>Background</string>\n<key>ProgramArguments</key><array><string>${xml(node)}</string><string>${xml(join(maintenance, 'repair.mjs'))}</string></array>\n<key>EnvironmentVariables</key><dict><key>ENHANCED_PRESENCE_RESOURCES</key><string>${xml(resources)}</string><key>ENHANCED_PRESENCE_HOME</key><string>${xml(home)}</string></dict>\n<key>RunAtLoad</key><true/>\n<key>WatchPaths</key><array><string>${xml(resources)}</string><string>${xml(dist)}</string></array>\n<key>StandardErrorPath</key><string>${xml(join(maintenance, 'repair-error.log'))}</string>\n<key>StandardOutPath</key><string>/dev/null</string>\n</dict></plist>\n`, { mode: 0o600 });
   if (start) {
     const domain = `gui/${process.getuid()}`;
     try { execFileSync('launchctl', ['bootout', `${domain}/${LABEL}`], { stdio: 'ignore' }); } catch { /* not loaded yet */ }

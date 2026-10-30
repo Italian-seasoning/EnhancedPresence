@@ -6,7 +6,8 @@ export function resolveArtwork(id: string, key: string): Promise<string | undefi
     if (!cache.has(cacheKey)) {
         const request = ApplicationAssetUtils.fetchAssetIds(id, [key]).then(ids => ids[0] as string | undefined).catch(() => undefined);
         cache.set(cacheKey, request);
-        void request.then(value => { if (!value) setTimeout(() => cache.delete(cacheKey), 30000); });
+        while (cache.size > 128) cache.delete(cache.keys().next().value!);
+        void request.then(value => { if (!value) setTimeout(() => { if (cache.get(cacheKey) === request) cache.delete(cacheKey); }, 30000); });
     }
     return cache.get(cacheKey)!;
 }

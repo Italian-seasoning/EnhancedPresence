@@ -15,7 +15,9 @@ const text = value => typeof value === 'string'
   : '';
 const finite = value => typeof value === 'number' && Number.isFinite(value);
 const maxSeconds = 7 * 24 * 60 * 60;
-export function selectMusicActivity(activity, track, config, foregroundAppId) {
+export function selectMusicActivity(activity, track, config, foregroundAppId, snapshot, quietHours = false) {
+  if (!snapshot || !bundleId(snapshot.appId) || !Number.isInteger(snapshot.pid) || snapshot.pid <= 0
+    || !finite(snapshot.idleSeconds) || snapshot.idleSeconds < 0 || snapshot.inactive !== false || quietHours) return activity;
   if (!track || track.appId !== 'com.apple.Music' || !config.enabled || !config.music.enabled) return activity;
   const allowed = config.music.sources.includes(track.appId);
   if (!allowed || !config.allowlist.includes(track.appId) || config.denylist.includes(track.appId) || blocked.has(track.appId)) return activity;
@@ -53,7 +55,9 @@ export function normalizeNowPlaying(value, now = Date.now()) {
   const result = { kind: 'music', appId, appName: playerNames[appId] ?? appId,
     details, startTimestamp, privacyLevel: 'limited' };
   const artist = text(value.artist);
+  const album = text(value.album);
   if (artist) result.state = artist;
+  if (album) result.album = album;
   if (duration !== null) result.endTimestamp = startTimestamp + Math.ceil(duration);
   const artwork = publicArtwork(value.artworkUrl);
   if (artwork) result.artworkUrl = artwork;

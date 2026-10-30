@@ -1,0 +1,91 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/Italian-seasoning/EnhancedPresence/main/docs/events/music-artwork-v1.schema.json",
+  "title": "Music artwork native IPC contract v1",
+  "description": "Vencord renderer calls its existing native plugin helper only for eligible Apple Music activity while icons are enabled. No network listener, new authentication, account credential, filesystem read, local artwork upload, or added process. Invalid input, no exact catalog match, rate limits, and network errors return null. Fixed HTTPS Apple catalog request; at most 10 requests per minute, 128 KiB response, 2 second timeout, 64 cached metadata keys with request deduplication. Client drops late results after activity change, pause, or disconnect. The only catalog endpoint is https://itunes.apple.com/search (media=music, entity=song, limit=10). Matching normalizes Unicode NFKC, case, and whitespace only, then requires exact title, artist, and album equality. Successful results expire after one hour; missing/error results after one minute. Only the validated public image URL is retained, never image bytes. This document validates the native request at its root; response and protocol music-activity extensions have separately addressable definitions.",
+  "$defs": {
+    "request": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "appId",
+        "title",
+        "artist",
+        "album"
+      ],
+      "properties": {
+        "appId": {
+          "const": "com.apple.Music"
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f]+$"
+        },
+        "artist": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f]+$"
+        },
+        "album": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f]+$"
+        }
+      }
+    },
+    "response": {
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "string",
+          "maxLength": 2048,
+          "pattern": "^https://is[0-9]+-ssl\\.mzstatic\\.com/[^\\s]*$"
+        }
+      ]
+    },
+    "activityExtension": {
+      "type": "object",
+      "description": "Protocol 1 gains an optional bounded album field on music activities only. Existing state remains the artist. Discord conversion displays artist and album within 128 characters; older consumers may ignore album. Non-music activities cannot contain album.",
+      "properties": {
+        "album": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f]+$"
+        },
+        "kind": {
+          "enum": [
+            "app",
+            "music"
+          ]
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "required": [
+              "album"
+            ]
+          },
+          "then": {
+            "required": [
+              "kind"
+            ],
+            "properties": {
+              "kind": {
+                "const": "music"
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  "$ref": "#/$defs/request"
+}

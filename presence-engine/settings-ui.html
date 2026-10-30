@@ -155,9 +155,10 @@ const views = {
     return `<h2>Schedule</h2><p class="sub">When your activity is shown and how quickly it changes.</p>
     <div class="card"><h3>Quiet hours</h3>${row('Hide activity during quiet hours', 'Can wrap past midnight.', toggle('quiet', q.enabled, 'Quiet hours'))}
     ${row('From', '', `<input type="time" id="qstart" value="${esc(q.start)}" aria-label="Quiet hours start">`)}${row('Until', '', `<input type="time" id="qend" value="${esc(q.end)}" aria-label="Quiet hours end">`)}</div>
-    <div class="card"><h3>Timing</h3>${row('Hide after no input', 'Clears your activity when you step away.', `<select id="idle" aria-label="Idle timeout">${options([[300, '5 minutes'], [600, '10 minutes'], [900, '15 minutes'], [1800, '30 minutes']], c.idleSeconds)}</select>`)}
+    <div class="card"><h3>Timing</h3>${row('Hide after no input', 'Hides app activity when you step away. Playing music stays visible while unlocked.', `<select id="idle" aria-label="Idle timeout">${options([[300, '5 minutes'], [600, '10 minutes'], [900, '15 minutes'], [1800, '30 minutes']], c.idleSeconds)}</select>`)}
     ${row('Wait before switching apps', 'Stops flicker when you glance at another app.', `<select id="delay" aria-label="Switch delay">${options([[0, 'No delay'], [30, '30 seconds'], [60, '1 minute'], [120, '2 minutes'], [300, '5 minutes']], c.switchDelaySeconds)}</select>`)}</div>
-    <div class="card"><h3>Music</h3>${row('Show Apple Music', 'Uses a private macOS interface that can change.', toggle('music', c.music.enabled, 'Show Apple Music'))}</div>`;
+    <div class="card"><h3>Music</h3>${row('Show Apple Music', 'Shares song, artist and album. With icons enabled, those names are sent to Apple to find public album covers and artist portraits.', toggle('music', c.music.enabled, 'Show Apple Music'))}
+    ${c.music.enabled ? row('When music is playing', 'Prefer Apple Music to keep your track visible in the background.', `<select id="musicPriority" aria-label="Music priority">${options([['music', 'Prefer Apple Music'], ['app', 'Prefer the active app']], c.music.priority)}</select>`) : ''}</div>`;
   },
   system() {
     const c = state.controls, p = state.runtime?.perf;
@@ -199,7 +200,7 @@ function wire() {
   bind('provider', 'change', e => agent({ provider: e.target.value })); bind('interval', 'change', e => agent({ intervalMinutes: Number(e.target.value) })); bind('showProject', 'change', e => agent({ showProject: e.target.checked }));
   bind('quiet', 'change', e => save('general', { quietHours: { enabled: e.target.checked } })); bind('qstart', 'change', e => e.target.value && save('general', { quietHours: { start: e.target.value } })); bind('qend', 'change', e => e.target.value && save('general', { quietHours: { end: e.target.value } }));
   bind('idle', 'change', e => save('idle', { seconds: Number(e.target.value) })); bind('delay', 'change', e => save('behavior', { switchDelaySeconds: Number(e.target.value) }));
-  bind('music', 'change', e => save('behavior', { music: { enabled: e.target.checked } }));
+  bind('music', 'change', e => save('behavior', { music: { enabled: e.target.checked } })); bind('musicPriority', 'change', e => save('behavior', { music: { priority: e.target.value } }));
   bind('output', 'change', e => save('general', { output: e.target.value })); bind('saver', 'change', e => save('general', { powerSaver: e.target.value }));
 }
 $('nav').addEventListener('click', e => { const b = e.target.closest('[data-page]'); if (b) { page = b.dataset.page; render(); } });

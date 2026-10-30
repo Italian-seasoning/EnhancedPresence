@@ -4,7 +4,7 @@ import { spawn } from 'node:child_process';
 import { createInterface } from 'node:readline';
 import { fileURLToPath } from 'node:url';
 import { PresenceEngine, isDiscord } from './engine.mjs';
-import { validateConfig, foregroundProfile, profiles } from './profiles.mjs';
+import { validateConfig, foregroundProfile, profiles, inQuietHours } from './profiles.mjs';
 import { resolveProvider } from './resolve.mjs';
 import { message } from '../shared/protocol.mjs';
 import { DiscordRPC } from './rpc.mjs';
@@ -50,8 +50,9 @@ function currentSnapshot() {
   return { ...latest, idleSeconds: latest.idleSeconds + (Date.now() - lastInput) / 1000 };
 }
 function selectedActivity(activity, snapshot) {
-  if (foregroundProfile(snapshot, engine.config) || (isDiscord(snapshot?.appId) && activity)) return selectMusicActivity(activity, music.current, engine.config, activity?.appId);
-  return null;
+  const appEligible = foregroundProfile(snapshot, engine.config) || (isDiscord(snapshot?.appId) && activity);
+  return selectMusicActivity(appEligible ? activity : null, music.current, engine.config, snapshot?.appId,
+    snapshot, inQuietHours(engine.config.quietHours, new Date()));
 }
 function track(action, ...values) {
   try { return usage?.[action](...values); }

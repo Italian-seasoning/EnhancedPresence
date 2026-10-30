@@ -14,3 +14,13 @@ test('native helper distinguishes stale, paused and connected activity and rejec
     assert.match(execFileSync(binary, ['--self-test'], { encoding: 'utf8', timeout: 2000 }), /Helper checks passed/);
   } finally { rmSync(scratch, { recursive: true, force: true }); }
 });
+
+test('native installer validates application IDs and resolves only its bundled payload', { skip: process.platform !== 'darwin', timeout: 120000 }, () => {
+  const scratch = mkdtempSync(join(tmpdir(), 'presence-installer-'));
+  try {
+    const binary = join(scratch, 'installer');
+    const architecture = process.arch === 'x64' ? 'x86_64' : process.arch;
+    execFileSync('swiftc', ['-parse-as-library', '-target', `${architecture}-apple-macosx13.5`, fileURLToPath(new URL('../native/Installer.swift', import.meta.url)), '-o', binary], { timeout: 100000 });
+    assert.match(execFileSync(binary, ['--self-test'], { encoding: 'utf8', timeout: 2000 }), /Installer checks passed/);
+  } finally { rmSync(scratch, { recursive: true, force: true }); }
+});

@@ -1,0 +1,111 @@
+name: macOS beta release
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/release.yml'
+      - 'native/**'
+      - 'presence-engine/**'
+      - 'scripts/**'
+      - 'shared/**'
+      - 'vendor/**'
+      - 'vencord-plugin/**'
+      - 'tests/**'
+      - 'package.json'
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing release tag to build
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: arm64
+            runner: macos-15
+          - arch: x64
+            runner: macos-15-intel
+    env:
+      RELEASE_ARCH: ${{ matrix.arch }}
+      RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+      - name: Validate release version and test
+        run: |
+          node --input-type=module -e 'import fs from "node:fs"; const v=JSON.parse(fs.readFileSync("package.json")).version; if(process.env.GITHUB_EVENT_NAME !== "pull_request" && process.env.RELEASE_TAG !== `v${v}`) throw Error("Tag does not match package version");'
+          npm test
+      - name: Build tested Vencord with the plugin
+        env:
+          VENCORD_DIR: ${{ runner.temp }}/vencord
+        run: |
+          node --input-type=module <<'NODE'
+          import { execFileSync } from 'node:child_process';
+          import { mkdirSync, readFileSync } from 'node:fs';
+          import { VENCORD_REV, pnpmPackage } from './scripts/quickstart.mjs';
+          import { installPlugin } from './scripts/install-vencord.mjs';
+          const cwd = process.env.VENCORD_DIR;
+          mkdirSync(cwd, { recursive: true });
+          const run = (cmd, args) => execFileSync(cmd, args, { cwd, stdio: 'inherit' });
+          run('git', ['init', '-q']);
+          run('git', ['remote', 'add', 'origin', 'https://github.com/Vendicated/Vencord.git']);
+          run('git', ['fetch', '--depth', '1', 'origin', VENCORD_REV]);
+          run('git', ['checkout', '-q', 'FETCH_HEAD']);
+          installPlugin(cwd);
+          const manager = pnpmPackage(JSON.parse(readFileSync(`${cwd}/package.json`)));
+          run('npx', ['--yes', manager, 'install', '--frozen-lockfile']);
+          run('npx', ['--yes', manager, 'build', '--disable-updater']);
+          run('npx', ['--yes', manager, 'exec', 'tsc', '--noEmit']);
+          NODE
+      - name: Build self-contained installer
+        run: node scripts/package-macos.mjs --arch "$RELEASE_ARCH" --vencord "$RUNNER_TEMP/vencord" --output "$RUNNER_TEMP/release"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: macos-${{ matrix.arch }}
+          path: |
+            ${{ runner.temp }}/release/*.dmg
+            ${{ runner.temp }}/release/*.sha256
+          if-no-files-found: error
+          retention-days: 14
+
+  publish:
+    if: github.event_name != 'pull_request'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.tag || github.ref_name }}
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: macos-*
+          path: release
+          merge-multiple: true
+      - name: Verify and publish unsigned beta
+        run: |
+          cd release
+          sha256sum --check *.sha256
+          cat *.sha256 > SHA256SUMS
+          if gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Release already exists; refusing to overwrite published assets."
+            exit 1
+          fi
+          gh release create "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --verify-tag --title "Enhanced Presence ${RELEASE_TAG#v} — unsigned beta" --prerelease --notes-file ../RELEASE_NOTES.md *.dmg SHA256SUMS
