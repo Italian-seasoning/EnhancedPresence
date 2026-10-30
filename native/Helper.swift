@@ -3,6 +3,36 @@ import WebKit
 
 let settingsNotification = NSNotification.Name("app.enhancedpresence.openSettings")
 func isSettingsRequest(_ arguments: [String]) -> Bool { arguments == ["--settings"] }
+func hasBundledRuntime(_ resources: URL?) -> Bool {
+    guard let resources else { return false }
+    let node = resources.appendingPathComponent("runtime/node").path
+    let setup = resources.appendingPathComponent("scripts/bundle-setup.mjs").path
+    return FileManager.default.isExecutableFile(atPath: node) && FileManager.default.fileExists(atPath: setup)
+}
+func isManualLaunch(_ arguments: [String], resources: URL?) -> Bool { arguments.isEmpty && hasBundledRuntime(resources) }
+
+func startInstalledService() throws {
+    let home = FileManager.default.homeDirectoryForCurrentUser
+    let plist = home.appendingPathComponent("Library/LaunchAgents/app.enhancedpresence.engine.plist")
+    var info = stat()
+    guard lstat(plist.path, &info) == 0, (info.st_mode & S_IFMT) == S_IFREG,
+          info.st_uid == getuid(), (info.st_mode & 0o077) == 0 else {
+        throw NSError(domain: "EnhancedPresenceHelper", code: 1, userInfo: [NSLocalizedDescriptionKey: "The installed companion service was not found. Open Install Enhanced Presence to finish setup."])
+    }
+    let domain = "gui/\(getuid())", service = "\(domain)/app.enhancedpresence.engine"
+    let bootstrap = Process()
+    bootstrap.executableURL = URL(fileURLWithPath: "/bin/launchctl")
+    bootstrap.arguments = ["bootstrap", domain, plist.path]
+    try bootstrap.run(); bootstrap.waitUntilExit()
+    if bootstrap.terminationStatus == 0 { return }
+    let kickstart = Process()
+    kickstart.executableURL = URL(fileURLWithPath: "/bin/launchctl")
+    kickstart.arguments = ["kickstart", service]
+    try kickstart.run(); kickstart.waitUntilExit()
+    guard kickstart.terminationStatus == 0 else {
+        throw NSError(domain: "EnhancedPresenceHelper", code: 2, userInfo: [NSLocalizedDescriptionKey: "Could not start the installed companion service. Open Install Enhanced Presence to repair setup."])
+    }
+}
 if isSettingsRequest(Array(CommandLine.arguments.dropFirst())) {
     DistributedNotificationCenter.default().postNotificationName(settingsNotification, object: nil, userInfo: nil, deliverImmediately: true)
     exit(0)
@@ -37,6 +67,16 @@ func settingsURL(_ text: String) -> URL? {
 if CommandLine.arguments.contains("--self-test") {
     assert(isSettingsRequest(["--settings"]))
     assert(!isSettingsRequest(["node", "main.mjs", "--settings"]))
+    let scratch = FileManager.default.temporaryDirectory.appendingPathComponent("ep-helper-\(UUID().uuidString)")
+    let runtime = scratch.appendingPathComponent("runtime/node"), setup = scratch.appendingPathComponent("scripts/bundle-setup.mjs")
+    try! FileManager.default.createDirectory(at: runtime.deletingLastPathComponent(), withIntermediateDirectories: true)
+    try! FileManager.default.createDirectory(at: setup.deletingLastPathComponent(), withIntermediateDirectories: true)
+    FileManager.default.createFile(atPath: runtime.path, contents: Data())
+    FileManager.default.createFile(atPath: setup.path, contents: Data())
+    try! FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: runtime.path)
+    assert(isManualLaunch([], resources: scratch))
+    assert(!isManualLaunch(["--settings"], resources: scratch))
+    try! FileManager.default.removeItem(at: scratch)
     let now = Date().timeIntervalSince1970 * 1000
     let live: [String: Any] = ["updatedAt": now, "perf": ["source": "vencord"], "activity": ["appName": "Codex"]]
     assert(MenuStatus(enabled: true, runtime: live, running: true).title == "Vencord connected")
@@ -51,6 +91,13 @@ if CommandLine.arguments.contains("--self-test") {
 }
 
 let arguments = Array(CommandLine.arguments.dropFirst())
+if arguments.isEmpty {
+    guard isManualLaunch(arguments, resources: Bundle.main.resourceURL) else {
+        fputs("Open Install Enhanced Presence to set up the helper.\n", stderr); exit(2)
+    }
+    do { try startInstalledService(); exit(0) }
+    catch { fputs("\(error.localizedDescription)\n", stderr); exit(1) }
+}
 guard arguments.count >= 2 else { fputs("usage: EnhancedPresenceHelper NODE_PATH SCRIPT [ARGS]\n", stderr); exit(2) }
 let root = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support/EnhancedPresence")
 func privateJSON(_ name: String) -> [String: Any]? {
@@ -136,7 +183,7 @@ final class Helper: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWindowDel
     func showError(_ message: String) {
         let alert = NSAlert()
         alert.messageText = message
-        alert.informativeText = "The companion may still be starting. Try again, or run npm run doctor in the source folder."
+        alert.informativeText = "The companion may still be starting. Try again, or open Install Enhanced Presence to repair setup."
         alert.runModal()
     }
 

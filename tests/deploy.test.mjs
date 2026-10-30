@@ -23,13 +23,16 @@ test('deploy patches a Discord archive once, keeps the original, and is idempote
   // A stand-in for Discord's own archive: a valid asar padded past the 1 KB sanity floor.
   const discord = Buffer.concat([buildLoader('/discord/original.js'), Buffer.alloc(2048)]);
   writeFileSync(join(resources, 'app.asar'), discord);
-  const first = await deploy(checkout, { home, resources, start: false });
+  const first = await deploy(checkout, { home, resources, start: false, nodePath: '/payload/runtime/node' });
   assert.equal(first.changed, true);
   assert.deepEqual(readFileSync(join(resources, '_app.asar')), discord);
   assert.match(readFileSync(join(resources, 'app.asar')).toString('latin1'), /Vencord\/dist\/patcher\.js/);
   assert.equal(readFileSync(join(first.dist, 'renderer.js'), 'utf8'), '// renderer.js');
   assert.equal(existsSync(join(first.dist, 'renderer.js.map')), false);
-  assert.doesNotMatch(readFileSync(join(home, 'Library', 'LaunchAgents', 'app.enhancedpresence.vencord-repair.plist'), 'utf8'), /StartInterval/);
+  const repairPlist = readFileSync(join(home, 'Library', 'LaunchAgents', 'app.enhancedpresence.vencord-repair.plist'), 'utf8');
+  assert.doesNotMatch(repairPlist, /StartInterval/);
+  assert.match(repairPlist, /<string>\/payload\/runtime\/node<\/string>/);
+  assert.match(repairPlist, new RegExp(resources.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
   assert.equal((await deploy(checkout, { home, resources, start: false })).changed, false);
 });
 

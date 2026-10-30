@@ -86,7 +86,8 @@ export async function repair({ resources, dist, managed, backups, files, rename:
   return changed;
 }
 async function main() {
-  const base = join(homedir(), "Library/Application Support/EnhancedPresence/maintenance"), managed = join(base, "managed");
+  const home = process.env.ENHANCED_PRESENCE_HOME || homedir();
+  const base = join(home, "Library/Application Support/EnhancedPresence/maintenance"), managed = join(base, "managed");
   const lock = join(base, "repair.lock");
   try { await mkdir(lock, { mode: 0o700 }); }
   catch (e) {
@@ -111,14 +112,14 @@ async function main() {
       if (hash !== expected) throw Error("Managed build integrity check failed");
     }
     if (!manifest["loader.asar"] || !manifest["renderer.js"] || !manifest["patcher.js"]) throw Error("Incomplete managed build");
-    const resources = "/Applications/Discord.app/Contents/Resources";
+    const resources = process.env.ENHANCED_PRESENCE_RESOURCES || "/Applications/Discord.app/Contents/Resources";
     // shortcut: waits for recent updater writes, increase the delay if Discord changes its update process.
     if (!(await exists(resources)) || Date.now() - (await stat(resources)).mtimeMs < 30000) return;
     for (const name of ["app.asar", "_app.asar"]) {
       const p = join(resources, name);
       if (await exists(p) && Date.now() - (await stat(p)).mtimeMs < 30000) return;
     }
-    const dist = join(homedir(), "Library/Application Support/Vencord/dist");
+    const dist = join(home, "Library/Application Support/Vencord/dist");
     if (await exists(dist) && Date.now() - (await stat(dist)).mtimeMs < 30000) return;
     await repair({ resources, dist, managed, backups: join(base, "backups"), files: Object.keys(manifest).filter(n => n !== "loader.asar") });
   } finally { await rm(lock, { recursive: true, force: true }); }

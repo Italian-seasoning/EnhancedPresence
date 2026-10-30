@@ -2,9 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync, spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { accessSync, constants, lstatSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { isAbsolute, join } from 'node:path';
 
 // Explicitly opt in: this checks the real desktop's input clock, not a fixture.
 test('native detector idle agrees with an independent session input clock query', {
@@ -27,7 +27,10 @@ test('native detector idle agrees with an independent session input clock query'
       return idle;
     };
     const before = sessionIdle();
-    child = spawn(fileURLToPath(new URL('../build/detector', import.meta.url)));
+    const detector = process.env.ENHANCED_PRESENCE_DETECTOR ?? fileURLToPath(new URL('../build/detector', import.meta.url));
+    assert.ok(isAbsolute(detector) && lstatSync(detector).isFile(), 'Detector must be an absolute executable file');
+    accessSync(detector, constants.X_OK);
+    child = spawn(detector);
     const snapshot = await new Promise((resolve, reject) => {
       let output = '';
       const timer = setTimeout(() => reject(Error('No native detector snapshot')), 4000);

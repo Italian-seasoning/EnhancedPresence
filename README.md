@@ -5,30 +5,76 @@
 
 Your apps, activity and task timer on Discord.
 
-macOS · Custom Vencord plugin · Source beta · GPL-3.0-or-later
+macOS 13.5+ · Custom Vencord plugin · Unsigned beta · GPL-3.0-or-later
 
 <img src="assets/thumbnail.svg" alt="Example Enhanced Presence activity" width="760" />
 </div>
 
+## Download and install
+
+[**Download the unsigned beta**](https://github.com/Italian-seasoning/EnhancedPresence/releases/tag/v0.9.0-beta.1)
+
+| Your Mac | Download |
+| --- | --- |
+| Apple Silicon (M-series) | [Apple Silicon installer](https://github.com/Italian-seasoning/EnhancedPresence/releases/download/v0.9.0-beta.1/EnhancedPresence-0.9.0-beta.1-macOS-arm64.dmg) |
+| Intel | [Intel installer](https://github.com/Italian-seasoning/EnhancedPresence/releases/download/v0.9.0-beta.1/EnhancedPresence-0.9.0-beta.1-macOS-x64.dmg) |
+
+**This beta is unsigned and unnotarized. macOS may block it.** Only install it if you trust the release. The installer never disables Gatekeeper, removes quarantine, requests an administrator password, or grants privacy permissions. Checksums accompany the downloads.
+
+1. Open the DMG, then **Install Enhanced Presence.app**.
+2. Enter a public **Discord Application ID** from the [Developer Portal](https://discord.com/developers/applications), or keep your existing ID when updating. Never enter a bot/account token. Keep Vencord selected for app icons and the best compatibility; task hooks are optional.
+3. Choose **Install**, select the stable **Discord.app** in the macOS file picker and confirm **Choose Discord**. This gives setup access to that app; the helper needs no broad privacy permissions. Quit and reopen Discord, then open the menu bar helper's **Settings**, review allowed apps and press **Resume**. Discord's own activity-sharing setting must be on.
+
+Node, Xcode, Git, pnpm and source builds are **not needed** for the downloaded installer. It includes its own runtime and a tested Vencord build. The helper installs into `~/Applications`; settings, pairing and app-time totals stay in `~/Library/Application Support/EnhancedPresence`. First installation starts paused.
+
+The Vencord option replaces the local Vencord build while preserving its settings. Use the source workflow below if you maintain a build with other custom plugins. Discord's newest settings layout can hide Vencord's sidebar even when the plugin works; the helper Settings window controls the same companion settings.
+
+Enhanced Presence is independent of Discord and Vencord. Vencord modifies Discord's client and can violate Discord's terms. Review [Terms of Use](TERMS.md). Vencord does not support third-party plugins; see its [custom-plugin documentation](https://docs.vencord.dev/installing/custom-plugins/).
+
 ## What it does
 
-- App name, artwork and elapsed time, with an explicit allowlist.
-- Compact native menu: connection, current activity, Pause and Settings.
-- Settings in the helper and in **Vencord → Plugins → EnhancedPresenceUniversal**.
-- Optional Claude Code/Codex task status: Editing code, Reviewing code, Running tests. Fixed phrases work without model calls.
+- Allowed app names, artwork and elapsed time.
+- Compact native menu with connection, current activity, Pause and Settings.
+- Optional Claude Code/Codex task status such as Editing code, Reviewing code and Running tests. Fixed phrases require no model calls.
 - Optional Apple Music, quiet hours, custom text and local app-time totals.
 - Clears activity on pause, idle, sleep, lock, private apps or detector failure.
 
-**Vencord is the recommended connection:** it supports app names and artwork. Standalone IPC is available as a text-only fallback; Discord may display your Developer Portal application's name there.
+Vencord supports app names and artwork. Standalone mode avoids modifying Discord and shows text only; Discord may display your Developer Portal application's name there.
 
-This is an independent custom plugin. Vencord requires modifying Discord's client and can violate Discord's terms. Review [Terms of Use](TERMS.md) before installing. Vencord does not support third-party plugins; see its [custom-plugin documentation](https://docs.vencord.dev/installing/custom-plugins/).
+## Privacy and efficiency
 
-## Setup
+Core app presence needs **no Accessibility, Screen Recording, Input Monitoring, Automation or Full Disk Access**. Do not grant these permissions to Node, Terminal or your shell for this app.
 
-Requires macOS, Discord desktop, Node.js 22+ (with npm/npx), Git, Xcode command-line tools and CMake. This is a source build; there is no notarized one-click installer.
+Project/document names are optional, per app and off by default. Some supported apps need Accessibility for the named EnhancedPresence Helper. If names are unavailable, leave them off; generic presence still works. Settings and pairing remain local. The services use authenticated loopback connections and reject foreign origins. There is no telemetry or account login.
 
-1. Create a Discord application in the [Developer Portal](https://discord.com/developers/applications). Copy its numeric **Application ID**. No bot, account token or OAuth permissions are needed.
-2. Clone and run setup:
+Messages, Mail, Photos, password managers and Discord are always blocked. The plugin may fetch public app artwork through Discord; installed local icons are never uploaded. One persistent Node engine runs inside the helper. Vencord repair responds to file changes instead of starting Node on a repeating timer.
+
+### Optional task status
+
+Select **Enable optional task status hooks** in the installer. Hooks record tool categories and a project folder name locally, never prompts, commands or full paths. Project names are hidden from Discord by default; original hook settings are backed up and unrelated hooks are preserved. Codex may require reviewing the added hook in `/hooks`.
+
+AI wording is off by default. Fixed phrases need no CLI/model runs. Opting into AI wording requires your own supported Claude Code/Codex CLI and subscription; availability depends on your account.
+
+## Updating and uninstalling
+
+Download a newer installer and choose **Install**. Existing settings, pairing and local totals are preserved. There is no automatic code updater: Vencord's updater would replace a custom plugin build. Repair can reapply the installed build after Discord updates; a new compatibility fix needs a new Enhanced Presence download. Apple Music relies on a private macOS interface that can change.
+
+To uninstall the companion, reopen **Install Enhanced Presence.app** and choose **Uninstall**. This removes its helper, login services and managed task hooks, while keeping settings, history and Vencord. Use Vencord's official installer if you also want to remove Vencord from Discord.
+
+## Troubleshooting
+
+| Symptom | Check |
+| --- | --- |
+| macOS blocks the download | This is an unsigned beta, not an Apple-notarized app. Review the release and decide whether to trust it. Do not disable system protections. |
+| Waiting for Vencord | Fully quit/reopen Discord, then Resume in helper Settings. Reinstall the bundled plugin if Discord updated. |
+| Application name instead of app name | Standalone IPC is active. Use the Vencord option for app names and artwork. |
+| No activity | Allow the foreground app, Resume, enable Discord activity sharing, and account for the configured switch delay. |
+| No task status | Enable optional hooks, review Codex hook trust, and use an allowed editor/agent app. |
+| Names unavailable | Keep names off or review the optional helper permission. Never grant Node broad access. |
+
+## Build from source
+
+For development or a Vencord checkout with other custom plugins, install Node.js 22+, Git, Xcode command-line tools and CMake:
 
 ```sh
 git clone https://github.com/Italian-seasoning/EnhancedPresence.git
@@ -36,83 +82,15 @@ cd EnhancedPresence
 npm run quickstart -- --application-id YOUR_APPLICATION_ID
 ```
 
-3. Quit and reopen Discord. Open **Enhanced Presence → Settings** from the menu bar, review the allowed apps, then press **Resume**. Turn on Discord's activity-sharing setting if it is off. The custom plugin is enabled by default on fresh installs; existing explicit plugin choices are preserved.
+Add `--with-hooks` to opt into task hooks, `--standalone` to skip Vencord, or `--vencord /absolute/path/to/Vencord` to use your own checkout. Source setup downloads the exact pnpm version required by the tested Vencord revision. Run `npm run doctor` for live connection and resource checks.
 
-Setup downloads the exact pnpm version required by its Vencord checkout, builds the detector and music adapter, installs one helper/login service, builds the plugin with a tested Vencord revision, and applies that build to Discord. First installation starts paused and uses Vencord only. Updates preserve settings, pairing and local totals.
+`npm test` covers protocol, privacy, settings, recovery, installer and packaging logic. Real-machine checks: `ENHANCED_PRESENCE_NATIVE_SMOKE=1 npm test` (input clock) and `ENHANCED_PRESENCE_PERF=1 npm test` (resource limits).
 
-Discord's newest settings layout can hide Vencord's sidebar entries even while the plugin works. Use the helper Settings window (also opened by `npm run settings`) in that case; it controls the same companion settings.
-
-The Vencord repair job responds to Discord/Vencord file changes; it does not start Node on a repeating timer. Setup does not request administrator access or disable Gatekeeper.
-
-### Optional task status
-
-Hooks are **opt-in**. Add `--with-hooks` when installing or updating:
+To package a developer-built Vencord checkout containing the plugin:
 
 ```sh
-npm run quickstart -- --with-hooks
+npm run package:macos -- --arch arm64 --vencord /absolute/path/to/Vencord
+npm run package:macos -- --arch x64 --vencord /absolute/path/to/Vencord
 ```
 
-The hooks record tool categories and a project folder name locally, never prompts, commands or full paths. Project names are hidden from Discord by default. Original hook settings are backed up and unrelated hooks are preserved. Codex may require reviewing the added hook in `/hooks`.
-
-AI wording is off by default. Fixed phrases need no CLI/model runs; opting into Haiku or a configured Codex model uses your existing subscription and is rate limited. Model availability depends on your CLI/account.
-
-### Permissions and privacy
-
-**Core app presence needs no Accessibility, Screen Recording, Input Monitoring, Automation or Full Disk Access. Do not grant these permissions to Node, Terminal or your shell for this app.**
-
-Project/document names are optional, per app and off by default. If you want them, run `npm run accessibility` for the named helper instructions. Accessibility attribution can vary by macOS version; if names are unavailable, leave them off. Generic activity still works.
-
-Settings and pairing stay on your Mac in `~/Library/Application Support/EnhancedPresence`. Both local services bind to loopback, authenticate requests, and reject foreign origins. No telemetry or account login. Messages, Mail, Photos, password managers and Discord are always blocked. The plugin may fetch public app artwork through Discord; local icons are never uploaded.
-
-### Other setup options
-
-| Option | Purpose |
-| --- | --- |
-| `--vencord /absolute/path/to/Vencord` | Build using your own checkout. Its revision and other plugins are preserved. |
-| `--standalone` | Skip Vencord and use Discord IPC. Text only; Discord is not modified. |
-| `--restart-discord` | Restart Discord after setup. |
-| `--accept-terms` | Noninteractive setup after reviewing the terms. |
-
-For manual installation: `npm run build:detector`, `npm run build:music`, `npm run install:companion -- YOUR_APPLICATION_ID --helper`, then `npm run install:vencord -- /absolute/path/to/Vencord`. Rebuild that checkout with `pnpm build --disable-updater`, inject it and restart Discord.
-
-## Check or update
-
-```sh
-npm run doctor
-git pull --ff-only
-npm run quickstart
-```
-
-Doctor checks the **live Vencord connection**, not just whether plugin files exist, and measures combined CPU/memory. Pause is expected to disconnect the plugin. Settings also shows the connection state; standalone fallback is labelled explicitly.
-
-There is no automatic code updater. A custom build disables Vencord's updater so it cannot replace the plugin. Repair can reapply your existing build after Discord updates; new compatibility fixes require rebuilding. Apple Music uses a private macOS interface and can break after OS updates.
-
-## Troubleshooting
-
-| Symptom | Check |
-| --- | --- |
-| Waiting for Vencord | Fully quit/reopen Discord; enable EnhancedPresenceUniversal and Resume. Run doctor. |
-| Application name instead of app name | You're using standalone IPC. Select Vencord in Settings and connect the plugin. |
-| No activity | Allow the foreground app, Resume, enable Discord activity sharing; account for the configured switch delay. |
-| No task status | Install with `--with-hooks`, review Codex hook trust, and use an allowed editor/agent app. |
-| Names unavailable | Keep names off or review the optional helper permission. Never grant Node broad access. |
-
-## Uninstall
-
-Remove hooks first, then stop the services:
-
-```sh
-npm run install:companion -- --remove-hooks
-launchctl bootout "gui/$(id -u)/app.enhancedpresence.engine"
-launchctl bootout "gui/$(id -u)/app.enhancedpresence.vencord-repair"
-```
-
-Remove the two `app.enhancedpresence.*.plist` files from `~/Library/LaunchAgents` and `~/Applications/EnhancedPresence Helper.app`. Keep or delete `~/Library/Application Support/EnhancedPresence` depending on whether you want to preserve settings and app-time totals.
-
-Use the official Vencord installer to uninstall its Discord patch, or reinstall Discord. Uninstalling Enhanced Presence's helper does not remove Vencord or other plugins.
-
-## Development
-
-`npm test` runs the protocol, privacy, settings, recovery and helper checks. Real-machine checks: `ENHANCED_PRESENCE_NATIVE_SMOKE=1 npm test` (input clock) and `ENHANCED_PRESENCE_PERF=1 npm test` (resource limits). Custom plugins must also be built and checked against a real Vencord checkout.
-
-Report vulnerabilities privately via [SECURITY.md](SECURITY.md). GPL-3.0-or-later; vendored components retain their licenses.
+The release workflow builds both downloads from a version tag and verifies checksums before publishing. Bundled dependencies retain their licenses and corresponding-source links. Report vulnerabilities privately via [SECURITY.md](SECURITY.md).
