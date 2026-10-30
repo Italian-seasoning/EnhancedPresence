@@ -6,6 +6,7 @@ import { FluxDispatcher, PresenceStore, React, UserStore } from "@webpack/common
 import { AppManager } from "./AppManager";
 import { resolveArtwork } from "./artwork";
 import { createClient } from "./client.mjs";
+import type { MusicArtworkRequest } from "./music-artwork.mjs";
 import IgnoreActivities from "@plugins/ignoreActivities";
 import { fixActivityFilter } from "./compatibility.mjs";
 
@@ -54,6 +55,7 @@ const client = createClient({
         FluxDispatcher.dispatch({ type: "LOCAL_ACTIVITY_UPDATE", socketId: "EnhancedPresenceUniversal", activity });
     },
     resolveAsset: resolveArtwork,
+    lookupMusicArtwork: (request: MusicArtworkRequest) => Native?.getMusicArtwork ? Native.getMusicArtwork(request) : Promise.resolve(null),
     shouldPublishMusic: () => {
         const user = UserStore.getCurrentUser();
         const ownId = settings.store.applicationId.trim() || localPairing?.applicationId;

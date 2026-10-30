@@ -157,7 +157,7 @@ const views = {
     ${row('From', '', `<input type="time" id="qstart" value="${esc(q.start)}" aria-label="Quiet hours start">`)}${row('Until', '', `<input type="time" id="qend" value="${esc(q.end)}" aria-label="Quiet hours end">`)}</div>
     <div class="card"><h3>Timing</h3>${row('Hide after no input', 'Clears your activity when you step away.', `<select id="idle" aria-label="Idle timeout">${options([[300, '5 minutes'], [600, '10 minutes'], [900, '15 minutes'], [1800, '30 minutes']], c.idleSeconds)}</select>`)}
     ${row('Wait before switching apps', 'Stops flicker when you glance at another app.', `<select id="delay" aria-label="Switch delay">${options([[0, 'No delay'], [30, '30 seconds'], [60, '1 minute'], [120, '2 minutes'], [300, '5 minutes']], c.switchDelaySeconds)}</select>`)}</div>
-    <div class="card"><h3>Music</h3>${row('Show Apple Music', 'Uses a private macOS interface that can change.', toggle('music', c.music.enabled, 'Show Apple Music'))}</div>`;
+    <div class="card"><h3>Music</h3>${row('Show Apple Music', 'Shares song, artist and album. With icons enabled, those names are sent to Apple to find public album covers.', toggle('music', c.music.enabled, 'Show Apple Music'))}</div>`;
   },
   system() {
     const c = state.controls, p = state.runtime?.perf;

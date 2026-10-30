@@ -7,6 +7,8 @@ import { app, shell } from "electron";
 import { existsSync } from "fs";
 import { execFile } from "child_process";
 import { createInstalledIconLookup } from "./installed-icons.mjs";
+import { createMusicArtworkLookup } from "./music-artwork.mjs";
+import type { MusicArtworkRequest } from "./music-artwork.mjs";
 
 // Read only the installed companion's local pairing file, never Discord credentials.
 function companionRoot() {
@@ -29,6 +31,8 @@ const installedIcon = createInstalledIconLookup({
     getFileIcon: async path => (await app.getFileIcon(path, { size: "normal" })).toDataURL()
 });
 export function getInstalledAppIcon(_event: Electron.IpcMainInvokeEvent, id: string) { return process.platform === "darwin" ? installedIcon(id) : Promise.resolve(undefined); }
+const musicArtwork = createMusicArtworkLookup();
+export function getMusicArtwork(_event: Electron.IpcMainInvokeEvent, input: MusicArtworkRequest) { return musicArtwork(input); }
 export function saveAgentSettings(_event: Electron.IpcMainInvokeEvent, input: AgentControl) { return updateAgent(companionRoot(), input); }
 export function openNamePermissions(_event: Electron.IpcMainInvokeEvent) {
     if (process.platform !== "darwin") return;

@@ -20,6 +20,14 @@ test('normalizes actively playing metadata and playback timestamps', () => {
   });
 });
 
+test('normalizes an optional bounded album while keeping artist as state', () => {
+  const value = normalizeNowPlaying({ ...track, bundleIdentifier: 'com.apple.Music', album: '  Ａlbum\tTitle  ' }, now);
+  assert.equal(value.album, 'Ａlbum Title');
+  assert.equal(value.state, 'Example artist');
+  assert.equal(normalizeNowPlaying({ ...track, album: '  ' }, now).album, undefined);
+  assert.equal(normalizeNowPlaying({ ...track, album: 'a'.repeat(129) }, now).album.length, 128);
+});
+
 test('drops stopped, missing, hostile or non-audio data', () => {
   for (const value of [null, [], {}, { ...track, playing: false },
     { ...track, playing: 'true' }, { ...track, title: '\u0000\u202e' },

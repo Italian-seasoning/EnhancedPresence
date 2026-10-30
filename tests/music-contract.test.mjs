@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { normalizeNowPlaying, selectMusicActivity } from '../presence-engine/music.mjs';
 import { validateConfig } from '../presence-engine/profiles.mjs';
-import { message } from '../shared/protocol.mjs';
+import { discordActivity, message } from '../shared/protocol.mjs';
 import { parseActivity } from '../vencord-plugin/EnhancedPresenceUniversal/client.mjs';
 
 test('real normalized music crosses the Vencord protocol with or without artist metadata', () => {
@@ -13,6 +13,16 @@ test('real normalized music crosses the Vencord protocol with or without artist 
     assert.equal(activity.details, 'Track');
     assert.equal(activity.state, artist || undefined);
   }
+});
+
+test('album is music-only metadata; artist stays on the wire and Discord displays both', () => {
+  const track = normalizeNowPlaying({ playing: true, bundleIdentifier: 'com.apple.Music', title: 'Track', artist: 'Artist', album: 'Album' });
+  assert.equal(track.state, 'Artist');
+  assert.equal(message(track).activity.album, 'Album');
+  const activity = parseActivity(JSON.stringify(message(track)), '123456789012345678');
+  assert.equal(activity.state, 'Artist • Album');
+  assert.equal(discordActivity(track).state, 'Artist • Album');
+  assert.equal(track.album, 'Album');
 });
 
 test('hiding Apple Music also hides its background track', () => {

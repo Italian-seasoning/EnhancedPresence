@@ -8,23 +8,27 @@ export function parseActivity(text, applicationId) {
   if (m.type === 'heartbeat') return undefined;
   if (m.type !== 'presence_update') throw Error('Unsupported message');
   const a = m.activity;
-  const valid = x => typeof x === 'string' && x.length >= 1 && x.length <= 128 && !/[\x00-\x1f]/.test(x);
+  const valid = x => typeof x === 'string' && x.length >= 1 && x.length <= 128 && !/[\x00-\x1f\x7f-\x9f]/.test(x);
   if (!a || !valid(a.appId) || !valid(a.appName) || !valid(a.details) || a.privacyLevel !== 'limited' || !Number.isSafeInteger(a.startTimestamp) || a.startTimestamp <= 0 || a.startTimestamp > Date.now() / 1000 + 60) throw Error('Invalid activity');
   if (a.kind !== undefined && !['app', 'music'].includes(a.kind)) throw Error('Invalid activity kind');
   const music = a.kind === 'music';
+  if (a.album !== undefined && (!music || !valid(a.album))) throw Error('Invalid album');
   // Only these public normalized fields cross into Discord. Metadata is discarded.
   const activity = { application_id: applicationId, name: a.appName, details: a.details, type: music ? 2 : 0, flags: 1, timestamps: { start: a.startTimestamp * 1000 } };
   if (a.state !== undefined) {
     if (!valid(a.state) || (!music && !/^(?:(Media|Cut|Edit|Fusion|Color|Fairlight|Deliver) page|Project: [\w .-]{1,40})$/.test(a.state))) throw Error('Invalid workspace');
-    activity.state = a.state;
   }
+  if (music && a.album !== undefined) {
+    const labels = [a.state?.slice(0, 62), a.album.slice(0, 62)].filter(Boolean);
+    if (labels.length) activity.state = labels.join(' • ').slice(0, 128);
+  } else if (a.state !== undefined) activity.state = a.state;
   if (a.endTimestamp !== undefined) {
     if (!music || !Number.isSafeInteger(a.endTimestamp) || a.endTimestamp <= a.startTimestamp || a.endTimestamp - a.startTimestamp > 86400) throw Error('Invalid playback time');
     activity.timestamps.end = a.endTimestamp * 1000;
   }
   if (a.artworkUrl !== undefined) {
     if (!music || !validMusicArtwork(a.artworkUrl)) throw Error('Invalid music artwork');
-    activity.assets = { large_image: a.artworkUrl, large_text: a.details };
+    activity.assets = { large_image: a.artworkUrl, large_text: a.album ?? a.details };
   }
   if (a.largeImage !== undefined) {
     if (!/^[a-z0-9_-]{1,64}$/.test(a.largeImage) || !valid(a.largeText)) throw Error('Invalid asset');
@@ -33,7 +37,7 @@ export function parseActivity(text, applicationId) {
   return activity;
 }
 
-export function createClient({ getSettings, dispatch, socketFactory, resolveAsset = async () => undefined, shouldPublishMusic = () => true, status = () => {}, clock = () => Date.now(), timers = globalThis }) {
+export function createClient({ getSettings, dispatch, socketFactory, resolveAsset = async () => undefined, lookupMusicArtwork = async () => null, shouldPublishMusic = () => true, status = () => {}, clock = () => Date.now(), timers = globalThis }) {
   let socket, retryTimer, watchdog, running = false, retry = 1000, freshAt = 0, revision = 0, latestMusic, published;
   const publish = activity => { const key = JSON.stringify(activity); if (key !== published) { published = key; dispatch(activity); } };
   const clear = () => { revision++; publish(null); };
@@ -55,15 +59,36 @@ export function createClient({ getSettings, dispatch, socketFactory, resolveAsse
       if (!validSettings(current) || current.applicationId !== s.applicationId || current.bridgeToken !== s.bridgeToken) { clear(); ws.close(); return; }
       try {
         let activity = parseActivity(event.data, current.applicationId);
+        let musicSource;
         freshAt = clock(); status('Connected');
         if (activity === undefined) {
           if (!latestMusic) return;
+          musicSource = JSON.parse(latestMusic).activity;
           activity = parseActivity(latestMusic, current.applicationId);
-        } else latestMusic = activity?.type === 2 ? event.data : undefined;
+        } else {
+          latestMusic = activity?.type === 2 ? event.data : undefined;
+          if (activity?.type === 2) musicSource = JSON.parse(event.data).activity;
+        }
         if (activity === null) { clear(); return; }
         if (activity.type === 2 && !shouldPublishMusic(activity)) { clear(); return; }
         const version = ++revision;
         if (current.appIcons === false) delete activity.assets;
+        if (activity.type === 2 && !activity.assets && current.appIcons === true
+          && musicSource?.appId === 'com.apple.Music'
+          && [musicSource.details, musicSource.state, musicSource.album].every(value => typeof value === 'string' && value.length > 0 && value.length <= 128 && !/[\x00-\x1f\x7f-\x9f]/.test(value))) {
+          try {
+            const artwork = await lookupMusicArtwork({ appId: musicSource.appId, title: musicSource.details, artist: musicSource.state, album: musicSource.album });
+            if (version !== revision || ws !== socket || !running) return;
+            if (validMusicArtwork(artwork)) {
+              activity.assets = { large_image: artwork, large_text: musicSource.album };
+              const envelope = JSON.parse(latestMusic);
+              envelope.activity.artworkUrl = artwork;
+              latestMusic = JSON.stringify(envelope);
+            }
+          } catch { /* Missing cover art never interrupts presence. */ }
+        }
+        if (version !== revision || ws !== socket || !running || !validSettings(getSettings())) return;
+        if (activity.type === 2 && !shouldPublishMusic(activity)) { clear(); return; }
         if (!activity.assets && current.appIcons === true) {
           const icon = appIcon(JSON.parse(activity.type === 2 ? latestMusic : event.data).activity.appId);
           if (icon) activity.assets = { large_image: icon, large_text: activity.name };

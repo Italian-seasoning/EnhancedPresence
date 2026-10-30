@@ -53,7 +53,9 @@ export function normalizeNowPlaying(value, now = Date.now()) {
   const result = { kind: 'music', appId, appName: playerNames[appId] ?? appId,
     details, startTimestamp, privacyLevel: 'limited' };
   const artist = text(value.artist);
+  const album = text(value.album);
   if (artist) result.state = artist;
+  if (album) result.album = album;
   if (duration !== null) result.endTimestamp = startTimestamp + Math.ceil(duration);
   const artwork = publicArtwork(value.artworkUrl);
   if (artwork) result.artworkUrl = artwork;

@@ -4,6 +4,7 @@ This is an **unsigned, unnotarized beta**. macOS may block it. The installer doe
 
 - Installs the menu bar helper into your user Applications folder, with its own bundled runtime.
 - Includes the tested Vencord plugin build; task status hooks remain optional.
+- Apple Music shows song, artist, album and available public cover art, without account access or local image uploads.
 - Select the stable Discord app in the native picker to allow setup to install Vencord. No broad privacy permission is needed by the helper.
 - First use needs a public Discord Application ID, never a bot/account token. Sharing starts paused.
 - Reopen this installer to uninstall the companion. Settings, app-time history and Vencord are preserved.

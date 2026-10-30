@@ -34,6 +34,19 @@ test('music uses Listening with bounded artist, playback timing and approved pub
   assert.throws(() => parseActivity(JSON.stringify(message({ ...fixture, state: 'Arbitrary private state' })), id));
   assert.throws(() => parseActivity(JSON.stringify(message({ ...fixture, artworkUrl: music.artworkUrl })), id));
 });
+
+test('music album is bounded, music-only, and supplies album artwork text', () => {
+  const music = { ...fixture, kind: 'music', appId: 'com.apple.Music', appName: 'Apple Music', details: 'Track', state: 'Artist', album: 'Album', artworkUrl: 'https://is1-ssl.mzstatic.com/image/thumb/album.jpg' };
+  const activity = parseActivity(JSON.stringify(message(music)), id);
+  assert.equal(activity.details, 'Track');
+  assert.equal(activity.state, 'Artist • Album');
+  assert.deepEqual(activity.assets, { large_image: music.artworkUrl, large_text: 'Album' });
+  const bounded = parseActivity(JSON.stringify(message({ ...music, state: 'a'.repeat(128), album: 'b'.repeat(128) })), id);
+  assert.ok(bounded.state.length <= 128);
+  assert.throws(() => parseActivity(JSON.stringify(message({ ...fixture, album: 'Album' })), id));
+  assert.throws(() => parseActivity(JSON.stringify(message({ ...music, album: 'x'.repeat(129) })), id));
+  assert.throws(() => parseActivity(JSON.stringify(message({ ...music, album: 'Bad\u0085Album' })), id));
+});
 test('opted-in agent project names cross the bridge without accepting paths or arbitrary state', () => {
   const state = 'Project: example-project';
   assert.equal(parseActivity(JSON.stringify(message({ ...fixture, state })), id).state, state);
@@ -100,6 +113,67 @@ test('automatic icon lookup cannot publish after a privacy clear', async () => {
   await socket.onmessage({ data: JSON.stringify(message(null)) });
   resolve('mp:verified-image'); await pending;
   assert.equal(outputs.at(-1), null); assert.equal(outputs.some(x => x?.name), false); client.stop();
+});
+
+test('music artwork lookup is called only for eligible, enabled Apple Music activity', async t => {
+  let socket; const lookups = [], outputs = [];
+  const settings = { applicationId: id, bridgeToken: token, paused: false, appIcons: true };
+  const artwork = 'https://is1-ssl.mzstatic.com/image/thumb/album.jpg';
+  const client = createClient({ getSettings: () => settings, dispatch: x => outputs.push(x), socketFactory: () => (socket = { send() {}, close() {} }),
+    shouldPublishMusic: value => value.name === 'Apple Music',
+    lookupMusicArtwork: async request => { lookups.push(request); return artwork; },
+    resolveAsset: async (_id, url) => url === artwork ? 'mp:verified-album-art' : undefined
+  });
+  t.after(() => client.stop());
+  client.start(); socket.onopen();
+  const apple = { ...fixture, kind: 'music', appId: 'com.apple.Music', appName: 'Apple Music', details: 'Track', state: 'Artist', album: 'Album' };
+  await socket.onmessage({ data: JSON.stringify(message(apple)) });
+  assert.deepEqual(lookups, [{ appId: 'com.apple.Music', title: 'Track', artist: 'Artist', album: 'Album' }]);
+  assert.equal(outputs.at(-1).assets.large_image, 'mp:verified-album-art');
+  assert.equal(outputs.at(-1).assets.large_text, 'Album');
+  await socket.onmessage({ data: JSON.stringify(message({ ...apple, appId: 'com.spotify.client' })) });
+  assert.equal(lookups.length, 1);
+  settings.appIcons = false;
+  await socket.onmessage({ data: JSON.stringify(message(apple)) });
+  assert.equal(lookups.length, 1);
+  settings.appIcons = true;
+  const blockedMusic = createClient({ getSettings: () => settings, dispatch: x => outputs.push(x), socketFactory: () => (socket = { send() {}, close() {} }),
+    shouldPublishMusic: () => false, lookupMusicArtwork: async request => { lookups.push(request); return artwork; } });
+  t.after(() => blockedMusic.stop());
+  blockedMusic.start(); socket.onopen();
+  await socket.onmessage({ data: JSON.stringify(message(apple)) });
+  assert.equal(lookups.length, 1);
+});
+
+test('late music artwork cannot replace a changed song or republish after pause', async t => {
+  let socket; const requests = [], outputs = [], settings = { applicationId: id, bridgeToken: token, paused: false, appIcons: true };
+  const client = createClient({ getSettings: () => settings, dispatch: value => outputs.push(value), socketFactory: () => (socket = { send() {}, close() {} }),
+    resolveAsset: async (_id, url) => url,
+    lookupMusicArtwork: request => new Promise(resolve => requests.push({ request, resolve })) });
+  t.after(() => client.stop());
+  client.start(); socket.onopen();
+  const first = { ...fixture, kind: 'music', appId: 'com.apple.Music', appName: 'Apple Music', details: 'First', state: 'Artist', album: 'First album' };
+  const second = { ...first, details: 'Second', album: 'Second album' };
+  const oldPending = socket.onmessage({ data: JSON.stringify(message(first)) });
+  const newPending = socket.onmessage({ data: JSON.stringify(message(second)) });
+  assert.equal(requests.length, 2);
+  requests[1].resolve('https://is1-ssl.mzstatic.com/image/thumb/second.jpg');
+  await newPending;
+  requests[0].resolve('https://is1-ssl.mzstatic.com/image/thumb/first.jpg');
+  await oldPending;
+  assert.equal(outputs.at(-1).details, 'Second');
+  assert.equal(outputs.at(-1).assets.large_text, 'Second album');
+  const pausedPending = socket.onmessage({ data: JSON.stringify(message({ ...second, details: 'Paused', album: 'Paused album' })) });
+  client.stop();
+  requests[2].resolve('https://is1-ssl.mzstatic.com/image/thumb/paused.jpg');
+  await pausedPending;
+  assert.equal(outputs.at(-1), null);
+  client.start(); socket.onopen();
+  const disconnectedPending = socket.onmessage({ data: JSON.stringify(message({ ...second, details: 'Disconnected', album: 'Disconnected album' })) });
+  socket.onclose();
+  requests[3].resolve('https://is1-ssl.mzstatic.com/image/thumb/disconnected.jpg');
+  await disconnectedPending;
+  assert.equal(outputs.at(-1), null);
 });
 test('music yields to another integration and resumes on heartbeat without duplicate dispatches', async t => {
   let socket, occupied = true; const outputs = [];
