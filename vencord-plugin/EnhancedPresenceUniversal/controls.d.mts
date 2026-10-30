@@ -8,6 +8,7 @@ export interface AppControl {
 export interface MusicSettings { enabled: boolean; sources: "com.apple.Music"[]; priority: "music" | "app"; }
 export interface AppUsage { todaySeconds: number; totalSeconds: number; sessionSeconds: number; }
 export interface RuntimeStatus {
+    activity: { appId: string; appName: string; details: string; } | null;
     pending: { appId: string; appName: string; since: number; dueAt: number; } | null;
     music: { available: boolean; source?: string; error?: string; };
     perf?: Perf; updatedAt: number; stale: boolean; usage: Record<string, AppUsage>; usageError?: string;

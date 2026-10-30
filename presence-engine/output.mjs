@@ -18,7 +18,8 @@ export class OutputController {
   // Call on every activity change and periodically.
   update(activity = this.activity) {
     this.activity = activity;
-    this.bridge?.update(activity);
+    const mode = this.mode();
+    this.bridge?.update(mode === 'ipc' ? null : activity);
     const wanted = this.ipcWanted;
     if (wanted && !this.ipcActive) { this.ipcActive = true; this.rpc.start(); }
     if (!wanted && this.ipcActive) { this.ipcActive = false; this.rpc.update(null); void this.rpc.stop(); return; }

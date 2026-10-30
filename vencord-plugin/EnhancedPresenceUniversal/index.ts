@@ -17,7 +17,6 @@ let connectionStatus = "Stopped";
 let lastActivity: { name: string; details: string; } | null = null;
 let localPairing: { applicationId: string; bridgeToken: string; } | null = null;
 let pairingTimer: ReturnType<typeof setInterval> | undefined;
-let behaviorLoaded = false;
 const ShowCurrentGame = getUserSettingLazy<boolean>("status", "showCurrentGame")!;
 const Native = VencordNative.pluginHelpers.EnhancedPresenceUniversal as PluginNative<typeof import("./native")> | undefined;
 async function loadPairing() {
@@ -25,12 +24,13 @@ async function loadPairing() {
     try {
         const next = await Native.getLocalPairing();
         if (!active) return;
-        if (!behaviorLoaded && Native.getAppControls) {
+        if (Native.getAppControls) {
             const controls = await Native.getAppControls();
             if (!active) return;
-            settings.store.paused = !controls.enabled;
-            behaviorLoaded = true;
-            client.refresh();
+            if (settings.store.paused !== !controls.enabled) {
+                settings.store.paused = !controls.enabled;
+                client.refresh();
+            }
         }
         if (JSON.stringify(next) !== JSON.stringify(localPairing)) {
             localPairing = next;
@@ -82,8 +82,9 @@ export default definePlugin({
     name: "EnhancedPresenceUniversal",
     description: "Shares allowed apps and compatible music, with delayed app switching and local app-time totals.",
     authors: [{ name: "Italian-seasoning", id: 0n }],
+    enabledByDefault: true,
     dependencies: ["UserSettingsAPI"],
     settings,
     start() { active = true; client.start(); void loadPairing(); pairingTimer = setInterval(() => void loadPairing(), 15000); },
-    stop() { active = false; clearInterval(pairingTimer); pairingTimer = undefined; localPairing = null; behaviorLoaded = false; client.stop(); }
+    stop() { active = false; clearInterval(pairingTimer); pairingTimer = undefined; localPairing = null; client.stop(); }
 });

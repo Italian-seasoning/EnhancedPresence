@@ -23,7 +23,7 @@ test('engine clears presence during quiet hours and shows it afterwards', async 
 });
 
 test('custom phrases replace the built-in list and are validated', async () => {
-  const engine = new PresenceEngine({ phrases: { 'com.apple.dt.Xcode': ['Only this phrase'] } });
+  const engine = new PresenceEngine({ agent: { enabled: false }, phrases: { 'com.apple.dt.Xcode': ['Only this phrase'] } });
   assert.equal((await engine.update(snap, at(12).getTime())).details, 'Only this phrase');
   for (const bad of [{ x: [] }, { x: ['a'] }, { 'bad id': ['okay'] }, { x: 'text' }]) assert.throws(() => validateConfig({ phrases: bad }));
   assert.throws(() => validateConfig({ quietHours: { enabled: true, start: '25:00', end: '07:00' } }));

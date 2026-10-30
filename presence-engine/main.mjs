@@ -36,7 +36,7 @@ const bridge = useVencord ? new PresenceBridge(bridgeConfig.token, option('--bri
 if (bridge) await bridge.start();
 const output = useVencord ? new OutputController({ bridge, rpc, mode: () => engine.config.output }) : null;
 let last = undefined, lastInput = Date.now(), busy = false, queued = undefined, stopping = false;
-let latest, child, source, deadline, configWatcher, reloadTimer, statusKey, lastStatus = 0;
+let latest, child, source, deadline, configWatcher, reloadTimer, statusKey, lastStatus = 0, currentActivity = null;
 let musicStatus = { available: false };
 const music = createMusicProvider({
   onChange: () => { if (latest) void receive(currentSnapshot(), false); },
@@ -60,8 +60,9 @@ function track(action, ...values) {
 function saveStatus(force = false) {
   if (!root || !args.includes('--detect')) return;
   const pending = engine.pending ? { appId: engine.pending.id, appName: engine.config.profiles[engine.pending.id]?.name || profiles[engine.pending.id]?.[0] || 'App', since: engine.pending.start, dueAt: engine.pending.dueAt } : null;
-  const state = { pending, music: musicStatus, perf: { ...perf, saver, selfProtect, source: output?.source ?? 'none', ...(power ?? {}) }, usage: track('summary') || {}, ...(usageError ? { usageError } : {}) };
-  const key = JSON.stringify({ pending, music: musicStatus, saver, source: output?.source });
+  const activity = currentActivity && { appId: currentActivity.appId, appName: currentActivity.appName, details: currentActivity.details };
+  const state = { activity, pending, music: musicStatus, perf: { ...perf, saver, selfProtect, source: output?.source ?? 'none', ...(power ?? {}) }, usage: track('summary') || {}, ...(usageError ? { usageError } : {}) };
+  const key = JSON.stringify({ activity, pending, music: musicStatus, saver, source: output?.source });
   if (!force && key === statusKey && Date.now() - lastStatus < 60000) return;
   const path = join(root, 'status.local.json'), temp = `${path}.${process.pid}.tmp`;
   try {
@@ -72,6 +73,7 @@ function saveStatus(force = false) {
   finally { try { rmSync(temp, { force: true }); } catch {} }
 }
 function emit(activity) {
+  currentActivity = activity;
   const serialized = JSON.stringify(message(activity));
   if (serialized === last) return;
   if (!args.includes('--quiet')) console.log(serialized);
@@ -160,8 +162,8 @@ const watchdog = setInterval(() => {
 async function shutdown(code = 0) {
   if (stopping) return;
   stopping = true; clearInterval(watchdog); clearTimeout(deadline); clearTimeout(reloadTimer); configWatcher?.close(); music.stop(); lines.close(); child?.kill();
-  track('suspend'); saveStatus(true);
-  emit(null); clearInterval(sampler); settings?.close(); if (output) await output.stop(); else { await rpc?.stop(); await bridge?.stop(); } process.exit(code);
+  track('suspend'); emit(null); saveStatus(true);
+  clearInterval(sampler); settings?.close(); if (output) await output.stop(); else { await rpc?.stop(); await bridge?.stop(); } process.exit(code);
 }
 process.on('SIGINT', () => shutdown());
 process.on('SIGTERM', () => shutdown());

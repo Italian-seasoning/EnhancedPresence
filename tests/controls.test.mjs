@@ -90,3 +90,21 @@ test('corrupt usage leaves behavior controls usable and exposes the preserved-da
   assert.match(readRuntimeStatus(root).usageError, /could not be loaded/i);
   assert.equal(updateBehavior(root, { trackingEnabled: false }).trackingEnabled, false);
 }));
+
+test('current activity is bounded and hidden immediately when paused, stale or revoked', () => fixture(root => {
+  const now = Date.now();
+  const activity = { appId: id, appName: 'DaVinci Resolve', details: 'Editing video', token: 'PRIVATE' };
+  const path = join(root, 'status.local.json');
+  const save = value => writeFileSync(path, JSON.stringify({ updatedAt: now, music: { available: false }, activity: value }), { mode: 0o600 });
+  save(activity);
+  assert.deepEqual(readRuntimeStatus(root, now).activity, { appId: id, appName: 'DaVinci Resolve', details: 'Editing video' });
+  assert.equal(readRuntimeStatus(root, now + 91000).activity, null);
+  updateBehavior(root, { enabled: false });
+  assert.equal(readRuntimeStatus(root, now).activity, null);
+  updateBehavior(root, { enabled: true });
+  updateApp(root, { id, visibility: 'hidden' });
+  assert.equal(readRuntimeStatus(root, now).activity, null);
+  updateApp(root, { id, visibility: 'allowed' });
+  save({ ...activity, details: 'Bad\ntext' });
+  assert.throws(() => readRuntimeStatus(root, now), /activity/i);
+}));

@@ -15,7 +15,7 @@ export function parseActivity(text, applicationId) {
   // Only these public normalized fields cross into Discord. Metadata is discarded.
   const activity = { application_id: applicationId, name: a.appName, details: a.details, type: music ? 2 : 0, flags: 1, timestamps: { start: a.startTimestamp * 1000 } };
   if (a.state !== undefined) {
-    if (!valid(a.state) || (!music && !/^(Media|Cut|Edit|Fusion|Color|Fairlight|Deliver) page$/.test(a.state))) throw Error('Invalid workspace');
+    if (!valid(a.state) || (!music && !/^(?:(Media|Cut|Edit|Fusion|Color|Fairlight|Deliver) page|Project: [\w .-]{1,40})$/.test(a.state))) throw Error('Invalid workspace');
     activity.state = a.state;
   }
   if (a.endTimestamp !== undefined) {
@@ -46,7 +46,7 @@ export function createClient({ getSettings, dispatch, socketFactory, resolveAsse
     const ws = socketFactory('ws://127.0.0.1:43821'); socket = ws; freshAt = clock();
     ws.onopen = () => {
       if (ws !== socket || !running) return;
-      retry = 1000; freshAt = clock(); status('Connected');
+      retry = 1000; freshAt = clock();
       ws.send(JSON.stringify({ type: 'hello', protocol: 1, token: s.bridgeToken }));
     };
     ws.onmessage = async event => {
@@ -55,7 +55,7 @@ export function createClient({ getSettings, dispatch, socketFactory, resolveAsse
       if (!validSettings(current) || current.applicationId !== s.applicationId || current.bridgeToken !== s.bridgeToken) { clear(); ws.close(); return; }
       try {
         let activity = parseActivity(event.data, current.applicationId);
-        freshAt = clock();
+        freshAt = clock(); status('Connected');
         if (activity === undefined) {
           if (!latestMusic) return;
           activity = parseActivity(latestMusic, current.applicationId);

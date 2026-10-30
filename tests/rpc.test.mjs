@@ -59,3 +59,36 @@ test('synthetic detector → engine → IPC handshake, ACK, clear, reconnect and
   assert.equal(received.filter(p => p.cmd === 'SET_ACTIVITY').at(-1).args.activity, null);
   assert.equal(received.every(p => !p.cmd || p.cmd === 'SET_ACTIVITY'), true);
 });
+
+test('a rapid output resume cancels an in-flight graceful stop', async t => {
+  const dir = await mkdtemp(path.join(os.tmpdir(), 'ep-rpc-resume-'));
+  const socketPath = path.join(dir, 'mock.sock'), received = [];
+  const server = net.createServer(socket => {
+    const d = new Decoder();
+    socket.on('data', data => {
+      for (const f of d.push(data)) {
+        const payload = JSON.parse(f.body);
+        if (f.op === 0) socket.write(frame(1, { evt: 'READY' }));
+        else {
+          received.push(payload.args.activity);
+          const ack = () => socket.write(frame(1, { cmd: payload.cmd, nonce: payload.nonce, data: {} }));
+          setTimeout(ack, payload.args.activity === null ? 100 : 0);
+        }
+      }
+    });
+  });
+  server.listen(socketPath); await once(server, 'listening');
+  const rpc = new DiscordRPC('123456789012345678', { paths: [socketPath], interval: 0 });
+  t.after(async () => { await rpc.stop(); await new Promise(r => server.close(r)); await rm(dir, { recursive: true }); });
+  const engine = new PresenceEngine();
+  const first = { ...await engine.update({ appId: 'com.apple.Xcode', pid: 1, inactive: false, idleSeconds: 0 }, 100000), details: 'Building' };
+  const resumed = { ...await new PresenceEngine({ switchDelaySeconds: 0 }).update({ appId: 'com.apple.Safari', pid: 2, inactive: false, idleSeconds: 0 }, 100000), details: 'Browsing' };
+  rpc.start(); rpc.update(first);
+  await waitFor(() => received.some(a => a?.details?.includes('Building')));
+  await waitFor(() => !rpc.pending);
+  const stopping = rpc.stop(); rpc.start(); rpc.update(resumed);
+  await waitFor(() => received.some(a => a?.details?.includes('Browsing')));
+  await stopping;
+  assert.equal(rpc.closed, false);
+  assert.equal(rpc.ready, true);
+});

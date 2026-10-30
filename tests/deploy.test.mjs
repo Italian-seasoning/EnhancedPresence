@@ -4,6 +4,7 @@ import { mkdirSync, mkdtempSync, readFileSync, writeFileSync, existsSync } from 
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { buildLoader, deploy } from '../scripts/vencord-deploy.mjs';
+import { repair } from '../presence-engine/repair.mjs';
 
 test('loader is a valid asar whose index.js loads the patcher', () => {
   const asar = buildLoader('/home/x/Library/Application Support/Vencord/dist/patcher.js');
@@ -28,7 +29,24 @@ test('deploy patches a Discord archive once, keeps the original, and is idempote
   assert.match(readFileSync(join(resources, 'app.asar')).toString('latin1'), /Vencord\/dist\/patcher\.js/);
   assert.equal(readFileSync(join(first.dist, 'renderer.js'), 'utf8'), '// renderer.js');
   assert.equal(existsSync(join(first.dist, 'renderer.js.map')), false);
+  assert.doesNotMatch(readFileSync(join(home, 'Library', 'LaunchAgents', 'app.enhancedpresence.vencord-repair.plist'), 'utf8'), /StartInterval/);
   assert.equal((await deploy(checkout, { home, resources, start: false })).changed, false);
+});
+
+test('repair restores the original archive if activating the staged loader fails', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'ep-rollback-'));
+  const resources = join(root, 'Resources'), managed = join(root, 'managed'), dist = join(root, 'dist');
+  mkdirSync(resources); mkdirSync(managed); mkdirSync(dist);
+  const originalBytes = Buffer.concat([buildLoader('/discord/original.js'), Buffer.alloc(2048)]);
+  const loader = buildLoader('/Vencord/dist/patcher.js');
+  writeFileSync(join(resources, 'app.asar'), originalBytes);
+  writeFileSync(join(managed, 'loader.asar'), loader);
+  let failed = false;
+  await assert.rejects(repair({ resources, dist, managed, backups: join(root, 'backups'), files: [], rename: async (from, to) => {
+    if (!failed && to === join(resources, 'app.asar') && from.includes('.presence-')) { failed = true; throw Error('simulated activation failure'); }
+    return (await import('node:fs/promises')).rename(from, to);
+  }}), /simulated activation failure/);
+  assert.deepEqual(readFileSync(join(resources, 'app.asar')), originalBytes);
 });
 
 test('deploy refuses an incomplete build', async () => {
