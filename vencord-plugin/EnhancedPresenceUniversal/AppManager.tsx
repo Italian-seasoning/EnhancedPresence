@@ -49,7 +49,7 @@ export function AppManager({ native, getStatus, setPaused, setAppIcons, enableSh
         if (native?.getAppControls) native.getAppControls().then(value => { if (alive) setData(value); }).catch(() => { if (alive) setError("App settings are unavailable. Make sure the EnhancedPresence companion is installed."); });
         else setError("App controls need the desktop version of Discord.");
         async function refreshRuntime() {
-            if (!alive || reading) return;
+            if (!alive || reading || document.visibilityState !== "visible") return;
             setStatus(getStatus());
             if (!native?.getRuntimeStatus) return;
             reading = true;
@@ -58,7 +58,7 @@ export function AppManager({ native, getStatus, setPaused, setAppIcons, enableSh
             finally { reading = false; }
         }
         void refreshRuntime();
-        const timer = setInterval(() => void refreshRuntime(), 5000);
+        const timer = setInterval(() => void refreshRuntime(), 15000);
         return () => { alive = false; clearInterval(timer); };
     }, []);
     const app = data?.apps.find(item => item.id === selected);
@@ -138,7 +138,7 @@ export function AppManager({ native, getStatus, setPaused, setAppIcons, enableSh
                 {app.supportsName && <>
                     <label className="ep-idle">Show {app.id === "com.apple.TextEdit" ? "document" : "project"} name<input type="checkbox" disabled={busy} checked={app.showName} onChange={event => void saveDisclosure("showName", event.target.checked)} /></label>
                     <p className="ep-hint">{app.showName ? "The current name will be visible to people who can see your Discord activity." : "Names stay private. Only the app and activity text are shared."}</p>
-                    {app.showName && app.id !== "com.blackmagic-design.DaVinciResolve" && !data?.namesAvailable && <div className="ep-live"><div><strong>Allow names in macOS</strong><p>EnhancedPresence needs Accessibility access to read the active document’s title. Until then, generic activity still works. Document contents are never read.</p></div><button className="ep-button" onClick={() => void native?.openNamePermissions()}>Open Accessibility settings</button><button className="ep-button" onClick={() => void native?.getAppControls().then(setData)}>Check access</button></div>}
+                    {app.showName && app.id !== "com.blackmagic-design.DaVinciResolve" && !data?.namesAvailable && <div className="ep-live"><div><strong>Allow names in macOS</strong><p>Optional names need Accessibility for EnhancedPresence Helper. Never grant it to Node or Terminal. Until then, generic activity still works. Document contents are never read.</p></div><button className="ep-button" onClick={() => void native?.openNamePermissions()}>Open Accessibility settings</button><button className="ep-button" onClick={() => void native?.getAppControls().then(setData)}>Check access</button></div>}
                 </>}
                 {app.supportsContext && <><label className="ep-idle">Show current page and render status<input type="checkbox" disabled={busy} checked={app.showContext} onChange={event => void saveDisclosure("showContext", event.target.checked)} /></label><p className="ep-hint">Uses Resolve’s local scripting connection when available. If unavailable, your normal activity text appears.</p></>}
                 <div className="ep-preview"><span>Profile preview</span><div className="ep-preview-content">{status.appIcons && <AppIcon key={app.id} id={app.id} name={name} applicationId={status.applicationId} native={native} />}<div><strong>{name || "App name"}</strong><p>{app.showName ? `${app.showContext ? "Color grading" : "Editing"} “${app.id === "com.apple.TextEdit" ? "Document name" : "Project name"}”${app.id !== "com.blackmagic-design.DaVinciResolve" ? ` in ${name}` : ""}` : app.showContext ? "Color grading" : details || "Activity text"}</p>{app.showContext && <p>Color page</p>}</div></div>{(app.showName || app.showContext) && <p className="ep-hint">Example shown. Actual names and workspace appear when available.</p>}</div>

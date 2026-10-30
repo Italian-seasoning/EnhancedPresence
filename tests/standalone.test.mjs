@@ -32,6 +32,7 @@ test('vencord mode never uses IPC and ipc mode always does', () => {
   v.update(activity); assert.equal(a.rpc.running, false);
   const b = fakes(1), i = new OutputController({ ...b, mode: () => 'ipc' });
   i.update(activity); assert.equal(b.rpc.running, true);
+  assert.equal(b.bridge.updates.at(-1), null);
 });
 
 test('battery saver rules', () => {

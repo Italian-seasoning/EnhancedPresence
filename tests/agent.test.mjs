@@ -29,6 +29,8 @@ test('hook ignores its own status-writer calls', () => {
 });
 
 test('failing test then edit reads as squashing bugs; otherwise accurate phrases', () => {
+  assert.equal(phrase([{ c: 'edit' }]), 'Editing code');
+  assert.equal(phrase([{ c: 'read' }]), 'Reviewing code');
   assert.equal(phrase([{ c: 'test', f: true }, { c: 'edit', f: false }]), 'Squashing bugs');
   assert.equal(phrase([{ c: 'test', f: false }]), 'Running tests');
   assert.equal(phrase([]), 'Thinking');

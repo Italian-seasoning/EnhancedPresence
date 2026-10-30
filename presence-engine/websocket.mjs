@@ -49,7 +49,7 @@ export class PresenceBridge {
       else client.send(encoded);
     }
   }
-  authenticatedCount() { let n = 0; for (const client of this.ws.clients) if (client.authenticated) n++; return n; }
+  authenticatedCount() { let n = 0; for (const client of this.ws.clients) if (client.authenticated && client.readyState === WebSocket.OPEN) n++; return n; }
   update(activity) { this.activity = activity; this.broadcast(message(activity)); }
   async stop() {
     clearInterval(this.heartbeat); this.update(null);

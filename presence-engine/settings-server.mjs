@@ -24,21 +24,25 @@ export function state(root) {
 
 export async function startSettingsServer({ root, port = 43822 }) {
   const token = randomBytes(24).toString('hex');
-  const valid = value => typeof value === 'string' && value.length === token.length && timingSafeEqual(Buffer.from(value), Buffer.from(token));
+  const valid = value => typeof value === 'string' && /^[a-f0-9]{48}$/.test(value) && timingSafeEqual(Buffer.from(value), Buffer.from(token));
   const send = (res, status, body, type = 'application/json') => {
     res.writeHead(status, { 'content-type': `${type}; charset=utf-8`, 'cache-control': 'no-store', 'x-content-type-options': 'nosniff', 'referrer-policy': 'no-referrer', 'content-security-policy': "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'" });
     res.end(typeof body === 'string' ? body : JSON.stringify(body));
   };
   const server = createServer((req, res) => {
     const origin = `127.0.0.1:${server.address().port}`;
-    const url = new URL(req.url, `http://${origin}`);
+    let url;
+    try { url = new URL(req.url, `http://${origin}`); } catch { return send(res, 400, { error: 'Invalid request' }); }
     if (req.headers.host !== origin || (req.headers.origin && req.headers.origin !== `http://${origin}`)) return send(res, 403, { error: 'forbidden' });
     if (req.method === 'GET' && url.pathname === '/') {
       if (!valid(url.searchParams.get('t'))) return send(res, 403, { error: 'forbidden' });
       return send(res, 200, readFileSync(page, 'utf8').replace('__EP_TOKEN__', token), 'text/html');
     }
     if (!valid(req.headers['x-ep-token'])) return send(res, 403, { error: 'forbidden' });
-    if (req.method === 'GET' && url.pathname === '/api/state') return send(res, 200, state(root));
+    if (req.method === 'GET' && url.pathname === '/api/state') {
+      try { return send(res, 200, state(root)); }
+      catch { return send(res, 503, { error: 'Companion settings are unavailable. Check the local configuration.' }); }
+    }
     const action = url.pathname.startsWith('/api/') ? actions[url.pathname.slice(5)] : undefined;
     if (req.method !== 'POST' || !action || !/^application\/json/.test(req.headers['content-type'] ?? '')) return send(res, 404, { error: 'not found' });
     let body = '';

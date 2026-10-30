@@ -36,7 +36,7 @@ async function backupFile(source, backups, label) {
   await mkdir(backups, { recursive: true, mode: 0o700 });
   await copyFile(source, join(backups, `${Date.now()}-${process.pid}-${label}`), constants.COPYFILE_EXCL);
 }
-export async function repair({ resources, dist, managed, backups, files }) {
+export async function repair({ resources, dist, managed, backups, files, rename: move = rename }) {
   const app = join(resources, "app.asar"), original = join(resources, "_app.asar"), loader = join(managed, "loader.asar");
   await regular(loader);
   const loaderBytes = await readFile(loader);
@@ -48,12 +48,19 @@ export async function repair({ resources, dist, managed, backups, files }) {
     const isLoader = current.size === loaderBytes.length && same(await readFile(app), loaderBytes);
     if (!isLoader) {
       if (!(await archive(app))) throw Error("Unrecognized Discord app.asar; refusing to replace it");
-      if (await exists(original)) {
-        if (!(await archive(original))) throw Error("Unrecognized Discord _app.asar; refusing to replace it");
-        await backupFile(original, backups, "previous-discord.asar");
+      const staged = `${app}.presence-${process.pid}.tmp`;
+      try {
+        await copyFile(loader, staged, constants.COPYFILE_EXCL);
+        if (await exists(original)) {
+          if (!(await archive(original))) throw Error("Unrecognized Discord _app.asar; refusing to replace it");
+          await backupFile(original, backups, "previous-discord.asar");
+        }
+        await move(app, original);
+        try { await move(staged, app); }
+        catch (error) { await move(original, app); throw error; }
+      } finally {
+        await rm(staged, { force: true });
       }
-      await rename(app, original);
-      await atomicCopy(loader, app);
       changed = true;
     } else if (!(await exists(original)) || !(await archive(original))) {
       throw Error("Discord original archive missing or invalid");

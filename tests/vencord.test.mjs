@@ -34,18 +34,28 @@ test('music uses Listening with bounded artist, playback timing and approved pub
   assert.throws(() => parseActivity(JSON.stringify(message({ ...fixture, state: 'Arbitrary private state' })), id));
   assert.throws(() => parseActivity(JSON.stringify(message({ ...fixture, artworkUrl: music.artworkUrl })), id));
 });
+test('opted-in agent project names cross the bridge without accepting paths or arbitrary state', () => {
+  const state = 'Project: example-project';
+  assert.equal(parseActivity(JSON.stringify(message({ ...fixture, state })), id).state, state);
+  for (const value of ['Project: /private/path', 'Project: ' + 'x'.repeat(41), 'Project: Bad\nname']) {
+    assert.throws(() => parseActivity(JSON.stringify(message({ ...fixture, state: value })), id));
+  }
+});
 test('client pause/unpause, disconnect/retry, watchdog and stop clear only its own consumer', async () => {
-  const published = [], sockets = [], timeouts = [], intervals = []; let now = 0;
+  const published = [], statuses = [], sockets = [], timeouts = [], intervals = []; let now = 0;
   const settings = { applicationId: id, bridgeToken: token, paused: true };
   const timers = { setTimeout(fn, delay) { const x = { fn, delay }; timeouts.push(x); return x; }, clearTimeout(x) { if (x) x.cancelled = true; }, setInterval(fn) { intervals.push(fn); return 1; }, clearInterval() {} };
-  const client = createClient({ getSettings: () => settings, dispatch: x => published.push(x), clock: () => now, timers,
+  const client = createClient({ getSettings: () => settings, dispatch: x => published.push(x), status: x => statuses.push(x), clock: () => now, timers,
     socketFactory(url) { assert.equal(url, 'ws://127.0.0.1:43821'); const s = { sent: [], send(x) { this.sent.push(x); }, close() { this.onclose?.(); } }; sockets.push(s); return s; }
   });
   client.start(); assert.equal(sockets.length, 0);
   settings.paused = false; client.refresh();
   const s = sockets.at(-1); s.onopen();
+  assert.notEqual(statuses.at(-1), 'Connected');
+  assert.equal(published.at(-1), null);
   assert.deepEqual(JSON.parse(s.sent[0]), { type: 'hello', protocol: 1, token });
   await s.onmessage({ data: JSON.stringify(message(fixture)) }); assert.equal(published.at(-1).name, 'Roblox');
+  assert.equal(statuses.at(-1), 'Connected');
   now = 44999; intervals.at(-1)(); assert.equal(published.at(-1).name, 'Roblox');
   now = 45000; intervals.at(-1)(); assert.equal(published.at(-1), null);
   timeouts.find(x => !x.cancelled && x.delay === 1000).fn(); assert.equal(sockets.length, 2);
@@ -124,6 +134,7 @@ test('synthetic engine → authenticated loopback WebSocket → mocked Vencord d
   bridge.update(await engine.update({ appId: fixture.appId, pid: 123, inactive: false, idleSeconds: 0 }, 100000));
   client.start(); await waitFor(() => outputs.some(x => x?.name === 'Roblox'));
   assert.equal(bridge.server.address().address, '127.0.0.1');
+  assert.equal(bridge.authenticatedCount(), 1);
   bridge.update(await engine.update({ appId: 'com.apple.mail', pid: 456, inactive: false, idleSeconds: 0 }));
   await waitFor(() => outputs.at(-1) === null);
   const unauth = new WebSocket(`ws://127.0.0.1:${port}`, { origin: 'https://discord.com' });
@@ -133,4 +144,5 @@ test('synthetic engine → authenticated loopback WebSocket → mocked Vencord d
   const rejected = new WebSocket(`ws://127.0.0.1:${port}`, { origin: 'https://example.invalid' });
   await once(rejected, 'error');
   await bridge.stop(); await waitFor(() => outputs.at(-1) === null);
+  assert.equal(bridge.authenticatedCount(), 0);
 });

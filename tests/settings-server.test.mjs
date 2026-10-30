@@ -48,3 +48,12 @@ test('settings changes validate and persist', async t => {
   assert.equal((await post(base, token, 'nope', {})).status, 404);
   assert.equal((await fetch(`${base}/api/general`, { method: 'POST', headers: { 'x-ep-token': token, 'content-type': 'text/plain' }, body: '{}' })).status, 404);
 });
+
+test('malformed requests and unavailable settings do not terminate the companion', async t => {
+  const { base, token, root } = await setup(t);
+  assert.equal((await fetch(`${base}/?t=${encodeURIComponent('é'.repeat(48))}`)).status, 403);
+  writeFileSync(join(root, 'config.local.json'), '{broken', { mode: 0o600 });
+  assert.equal((await fetch(`${base}/api/state`, { headers: { 'x-ep-token': token } })).status, 503);
+  writeFileSync(join(root, 'config.local.json'), '{}', { mode: 0o600 });
+  assert.equal((await fetch(`${base}/api/state`, { headers: { 'x-ep-token': token } })).status, 200);
+});

@@ -34,9 +34,9 @@ export class DiscordRPC {
   constructor(clientId, { paths = ipcPaths(), onStatus = () => {}, interval = 15000, retryDelay = 1000 } = {}) {
     if (!/^\d{17,20}$/.test(clientId)) throw Error('A numeric Discord application ID is required');
     Object.assign(this, { clientId, paths, onStatus, interval, retryDelay });
-    this.desired = null; this.ready = false; this.closed = false; this.lastSent = 0;
+    this.desired = null; this.ready = false; this.closed = false; this.lastSent = 0; this.lifecycle = 0;
   }
-  start() { this.closed = false; this.retryDelay = 1000; this.connect(0); }
+  start() { this.lifecycle++; this.closed = false; this.retryDelay = 1000; if (!this.ready) this.connect(0); }
   connect(index) {
     if (this.closed) return;
     const socket = net.createConnection(this.paths[index]);
@@ -90,9 +90,11 @@ export class DiscordRPC {
     this.ackTimer = setTimeout(() => this.socket.destroy(), 3000);
   }
   async stop() {
+    const lifecycle = this.lifecycle;
     this.update(null);
     const deadline = Date.now() + 1000;
     while (this.ready && (this.pending || this.sent !== 'null') && Date.now() < deadline) await new Promise(r => setTimeout(r, 20));
+    if (lifecycle !== this.lifecycle) return;
     this.closed = true;
     clearTimeout(this.retryTimer); clearTimeout(this.sendTimer); clearTimeout(this.ackTimer);
     this.socket?.destroy();

@@ -1,123 +1,192 @@
 import AppKit
 import WebKit
 
-// Menu bar helper. Runs the engine as a child process (so macOS privacy prompts name this app)
-// and offers pause/resume. Usage: EnhancedPresenceHelper NODE_PATH main.mjs [engine arguments...]
+let settingsNotification = NSNotification.Name("app.enhancedpresence.openSettings")
+func isSettingsRequest(_ arguments: [String]) -> Bool { arguments == ["--settings"] }
+if isSettingsRequest(Array(CommandLine.arguments.dropFirst())) {
+    DistributedNotificationCenter.default().postNotificationName(settingsNotification, object: nil, userInfo: nil, deliverImmediately: true)
+    exit(0)
+}
+
+// Read status on menu open; the engine remains the source of truth for sharing settings.
+struct MenuStatus {
+    let title: String
+    let activity: String
+    init(enabled: Bool?, runtime: [String: Any]?, running: Bool, now: Double = Date().timeIntervalSince1970 * 1000) {
+        let updated = runtime?["updatedAt"] as? Double ?? 0
+        guard running, let enabled, updated > 0, now - updated < 90000, updated <= now + 60000 else {
+            title = "Companion unavailable"; activity = "Open Settings to check setup"; return
+        }
+        guard enabled else { title = "Sharing paused"; activity = "Nothing is shared"; return }
+        let source = (runtime?["perf"] as? [String: Any])?["source"] as? String
+        title = source == "vencord" ? "Vencord connected" : source == "ipc" ? "Standalone mode" : "Waiting for Vencord"
+        if ["vencord", "ipc"].contains(source), let name = (runtime?["activity"] as? [String: Any])?["appName"] as? String, !name.isEmpty {
+            activity = "Sharing \(String(name.prefix(80)))"
+        } else { activity = "No activity shared" }
+    }
+}
+
+func settingsURL(_ text: String) -> URL? {
+    guard let parts = URLComponents(string: text), parts.scheme == "http", parts.host == "127.0.0.1",
+          parts.port == 43822, parts.path == "/", parts.user == nil, parts.password == nil, parts.fragment == nil,
+          parts.queryItems?.count == 1, let token = parts.queryItems?.first, token.name == "t",
+          token.value?.range(of: "^[a-f0-9]{48}$", options: .regularExpression) != nil else { return nil }
+    return parts.url
+}
+
+if CommandLine.arguments.contains("--self-test") {
+    assert(isSettingsRequest(["--settings"]))
+    assert(!isSettingsRequest(["node", "main.mjs", "--settings"]))
+    let now = Date().timeIntervalSince1970 * 1000
+    let live: [String: Any] = ["updatedAt": now, "perf": ["source": "vencord"], "activity": ["appName": "Codex"]]
+    assert(MenuStatus(enabled: true, runtime: live, running: true).title == "Vencord connected")
+    assert(MenuStatus(enabled: true, runtime: live, running: true).activity == "Sharing Codex")
+    assert(MenuStatus(enabled: false, runtime: live, running: true).activity == "Nothing is shared")
+    assert(MenuStatus(enabled: true, runtime: live, running: false).title == "Companion unavailable")
+    assert(MenuStatus(enabled: true, runtime: live, running: true, now: now + 91000).title == "Companion unavailable")
+    let token = String(repeating: "a", count: 48)
+    assert(settingsURL("http://127.0.0.1:43822/?t=\(token)") != nil)
+    for text in ["https://example.com/?t=\(token)", "http://localhost:43822/?t=\(token)", "http://127.0.0.1:43822/?t=x", "http://127.0.0.1:43822/?t=\(token)&other=1"] { assert(settingsURL(text) == nil) }
+    print("Helper checks passed"); exit(0)
+}
+
 let arguments = Array(CommandLine.arguments.dropFirst())
 guard arguments.count >= 2 else { fputs("usage: EnhancedPresenceHelper NODE_PATH SCRIPT [ARGS]\n", stderr); exit(2) }
 let root = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support/EnhancedPresence")
-let configPath = root.appendingPathComponent("config.local.json").path
-let sessionPath = root.appendingPathComponent("settings-session.json").path
-let statusPath = root.appendingPathComponent("status.local.json").path
-let setupScript = root.appendingPathComponent("presence-engine/setup.mjs").path
+func privateJSON(_ name: String) -> [String: Any]? {
+    let url = root.appendingPathComponent(name)
+    guard let attributes = try? FileManager.default.attributesOfItem(atPath: url.path),
+          attributes[.type] as? FileAttributeType == .typeRegular,
+          ((attributes[.size] as? NSNumber)?.intValue ?? Int.max) < 262144,
+          (attributes[.posixPermissions] as? NSNumber)?.intValue == 0o600,
+          (attributes[.ownerAccountID] as? NSNumber)?.uint32Value == getuid(),
+          let data = try? Data(contentsOf: url) else { return nil }
+    return (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
+}
 
-final class Helper: NSObject, NSApplicationDelegate, NSMenuDelegate {
+final class Helper: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWindowDelegate, WKNavigationDelegate {
     let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
-    let perfLine = NSMenuItem(title: "", action: nil, keyEquivalent: "")
+    let connection = NSMenuItem(title: "Starting…", action: nil, keyEquivalent: "")
+    let activity = NSMenuItem(title: "", action: nil, keyEquivalent: "")
+    let toggle = NSMenuItem(title: "Pause Sharing", action: #selector(toggleSharing), keyEquivalent: "")
     var window: NSWindow?
-    let toggle = NSMenuItem(title: "", action: #selector(toggleSharing), keyEquivalent: "")
     var engine: Process?
     var stopping = false
+    var changing = false
+    var restartDelay: Double = 5
+    var settingsObserver: NSObjectProtocol?
 
     func applicationDidFinishLaunching(_ note: Notification) {
+        settingsObserver = DistributedNotificationCenter.default().addObserver(forName: settingsNotification, object: nil, queue: .main) { [weak self] _ in self?.openSettings() }
         item.button?.image = NSImage(systemSymbolName: "dot.radiowaves.left.and.right", accessibilityDescription: "Enhanced Presence")
+        item.button?.image?.isTemplate = true
+        item.button?.toolTip = "Enhanced Presence"
         let menu = NSMenu()
         menu.delegate = self
-        let title = NSMenuItem(title: "Enhanced Presence", action: nil, keyEquivalent: "")
-        title.isEnabled = false
-        menu.addItem(title)
-        perfLine.isEnabled = false
-        menu.addItem(perfLine)
-        let settings = NSMenuItem(title: "Settings…", action: #selector(openSettings), keyEquivalent: ",")
-        settings.target = self
-        menu.addItem(settings)
-        toggle.target = self
-        menu.addItem(toggle)
-        let discord = NSMenuItem(title: "Open Discord", action: #selector(openDiscord), keyEquivalent: "")
-        discord.target = self
-        menu.addItem(discord)
-        let folder = NSMenuItem(title: "Show Settings Folder", action: #selector(showFolder), keyEquivalent: "")
-        folder.target = self
-        menu.addItem(folder)
+        menu.autoenablesItems = false
+        connection.isEnabled = false; activity.isEnabled = false
+        menu.addItem(connection); menu.addItem(activity); menu.addItem(.separator())
+        toggle.target = self; menu.addItem(toggle)
+        for (title, action, key) in [("Settings…", #selector(openSettings), ","), ("Open Discord", #selector(openDiscord), "")] {
+            let entry = NSMenuItem(title: title, action: action, keyEquivalent: key)
+            entry.target = self; menu.addItem(entry)
+        }
         menu.addItem(.separator())
         let quit = NSMenuItem(title: "Quit and Stop Sharing", action: #selector(quit), keyEquivalent: "q")
-        quit.target = self
-        menu.addItem(quit)
+        quit.target = self; menu.addItem(quit)
         item.menu = menu
         startEngine()
     }
 
-    func startEngine() {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: arguments[0])
-        process.arguments = Array(arguments.dropFirst())
-        process.terminationHandler = { [weak self] _ in
-            guard let self, !self.stopping else { return }
-            // Restart after a short pause if the engine exits unexpectedly.
-            DispatchQueue.main.asyncAfter(deadline: .now() + 5) { self.startEngine() }
-        }
-        try? process.run()
-        engine = process
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        openSettings(); return true
     }
 
-    func sharingEnabled() -> Bool {
-        guard let data = FileManager.default.contents(atPath: configPath),
-              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return false }
-        return json["enabled"] as? Bool ?? true
+    func startEngine() {
+        guard !stopping, engine?.isRunning != true else { return }
+        let process = Process(), started = Date()
+        process.executableURL = URL(fileURLWithPath: arguments[0])
+        process.arguments = Array(arguments.dropFirst())
+        process.terminationHandler = { [weak self] _ in DispatchQueue.main.async { self?.scheduleRestart(since: started) } }
+        engine = process
+        do { try process.run() } catch { scheduleRestart(since: started) }
+    }
+
+    func scheduleRestart(since started: Date) {
+        guard !stopping else { return }
+        if Date().timeIntervalSince(started) > 60 { restartDelay = 5 }
+        let delay = restartDelay
+        restartDelay = min(60, restartDelay * 2)
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in self?.startEngine() }
     }
 
     func menuWillOpen(_ menu: NSMenu) {
-        toggle.title = sharingEnabled() ? "Pause Sharing" : "Resume Sharing"
-        perfLine.title = performanceSummary()
+        let enabled = privateJSON("config.local.json")?["enabled"] as? Bool
+        let status = MenuStatus(enabled: enabled, runtime: privateJSON("status.local.json"), running: engine?.isRunning == true)
+        connection.title = status.title; activity.title = status.activity
+        toggle.title = enabled == false ? "Resume Sharing" : "Pause Sharing"
+        toggle.isEnabled = enabled != nil && engine?.isRunning == true && !changing
     }
 
-    // One short line from the engine's own status file: CPU, memory and battery saver.
-    func performanceSummary() -> String {
-        guard let data = FileManager.default.contents(atPath: statusPath),
-              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let perf = json["perf"] as? [String: Any],
-              let cpu = perf["cpuPercent"] as? Double, let memory = perf["rssMB"] as? Double else { return "Starting…" }
-        let saver = (perf["saver"] as? Bool ?? false) ? " · Battery saver on" : ""
-        return String(format: "CPU %.1f%% · %.0f MB%@", cpu, memory, saver)
+    func sessionURL() -> URL? {
+        guard let text = privateJSON("settings-session.json")?["url"] as? String else { return nil }
+        return settingsURL(text)
+    }
+
+    func showError(_ message: String) {
+        let alert = NSAlert()
+        alert.messageText = message
+        alert.informativeText = "The companion may still be starting. Try again, or run npm run doctor in the source folder."
+        alert.runModal()
     }
 
     @objc func openSettings() {
-        guard let data = FileManager.default.contents(atPath: sessionPath),
-              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let text = json["url"] as? String, let url = URL(string: text) else {
-            let alert = NSAlert()
-            alert.messageText = "Settings are not ready yet"
-            alert.informativeText = "The companion is still starting. Try again in a few seconds."
-            alert.runModal()
-            return
-        }
-        if window == nil {
-            let view = WKWebView(frame: .zero)
-            let created = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 960, height: 700), styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false)
-            created.title = "Enhanced Presence Settings"
-            created.contentView = view
-            created.isReleasedWhenClosed = false
-            created.center()
-            window = created
-        }
-        (window?.contentView as? WKWebView)?.load(URLRequest(url: url))
-        window?.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
+        guard let url = sessionURL() else { showError("Settings are unavailable"); return }
+        if let window { window.makeKeyAndOrderFront(nil); NSApp.activate(ignoringOtherApps: true); return }
+        let configuration = WKWebViewConfiguration()
+        configuration.websiteDataStore = .nonPersistent()
+        let view = WKWebView(frame: .zero, configuration: configuration)
+        view.navigationDelegate = self
+        let created = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 860, height: 620), styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false)
+        created.title = "Enhanced Presence"
+        created.minSize = NSSize(width: 650, height: 480)
+        created.contentView = view; created.delegate = self
+        created.isReleasedWhenClosed = false
+        created.center(); window = created
+        view.load(URLRequest(url: url))
+        created.makeKeyAndOrderFront(nil); NSApp.activate(ignoringOtherApps: true)
+    }
+
+    func windowWillClose(_ notification: Notification) {
+        (window?.contentView as? WKWebView)?.stopLoading()
+        window?.contentView = nil; window = nil
+    }
+
+    func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
+        decisionHandler(navigationAction.request.url.flatMap { settingsURL($0.absoluteString) } == nil ? .cancel : .allow)
     }
 
     @objc func toggleSharing() {
-        // The setup command validates and writes the settings atomically; the engine reloads them on its own.
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: arguments[0])
-        process.arguments = [setupScript, sharingEnabled() ? "pause" : "resume", "--config", configPath]
-        try? process.run()
+        guard !changing, let enabled = privateJSON("config.local.json")?["enabled"] as? Bool, let url = sessionURL(),
+              let parts = URLComponents(url: url, resolvingAgainstBaseURL: false), let token = parts.queryItems?.first?.value,
+              let endpoint = URL(string: "/api/behavior", relativeTo: url)?.absoluteURL else { showError("Sharing settings are unavailable"); return }
+        var request = URLRequest(url: endpoint)
+        request.httpMethod = "POST"; request.timeoutInterval = 5
+        request.setValue(token, forHTTPHeaderField: "x-ep-token")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try? JSONSerialization.data(withJSONObject: ["enabled": !enabled])
+        changing = true; toggle.isEnabled = false
+        URLSession.shared.dataTask(with: request) { [weak self] _, response, error in
+            DispatchQueue.main.async {
+                guard let self else { return }
+                self.changing = false; self.toggle.isEnabled = true
+                if error != nil || (response as? HTTPURLResponse)?.statusCode != 200 { self.showError("Couldn’t change sharing") }
+            }
+        }.resume()
     }
     @objc func openDiscord() { NSWorkspace.shared.open(URL(fileURLWithPath: "/Applications/Discord.app")) }
-    @objc func showFolder() { NSWorkspace.shared.open(root) }
     @objc func quit() {
-        stopping = true
-        engine?.terminate()
-        // Without this launchd would start the helper again immediately.
+        stopping = true; engine?.terminate()
         let stop = Process()
         stop.executableURL = URL(fileURLWithPath: "/bin/launchctl")
         stop.arguments = ["bootout", "gui/\(getuid())/app.enhancedpresence.engine"]
@@ -134,9 +203,8 @@ app.setActivationPolicy(.accessory)
 for signalNumber in [SIGTERM, SIGINT] { signal(signalNumber, SIG_IGN) }
 let sources = [SIGTERM, SIGINT].map { number -> DispatchSourceSignal in
     let source = DispatchSource.makeSignalSource(signal: number, queue: .main)
-    source.setEventHandler { delegate.engine?.terminate(); exit(0) }
-    source.resume()
-    return source
+    source.setEventHandler { delegate.stopping = true; delegate.engine?.terminate(); exit(0) }
+    source.resume(); return source
 }
 _ = sources
 app.run()

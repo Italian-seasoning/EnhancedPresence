@@ -9,7 +9,7 @@ import { installHooks, removeHooks, codexEvents } from './hooks.mjs';
 
 // Install the local companion only. Vencord's plugin is built and enabled separately.
 if (process.platform !== 'darwin') throw Error('The native app detector currently supports macOS.');
-const flags = process.argv.slice(2), helper = flags.includes('--helper'), start = !flags.includes('--no-start'), hooks = !flags.includes('--no-hooks');
+const flags = process.argv.slice(2), helper = flags.includes('--helper'), start = !flags.includes('--no-start'), hooks = flags.includes('--with-hooks') && !flags.includes('--no-hooks');
 // Installing means accepting the Terms of Use. Interactive runs ask; scripts pass --accept-terms.
 if (!flags.includes('--remove-hooks') && !flags.includes('--accept-terms')) {
   console.log('Enhanced Presence modifies the Discord client through Vencord, which is against Discord\'s Terms of Service, and is provided without warranty. You use it at your own risk. Read TERMS.md before continuing.');
@@ -25,6 +25,9 @@ const agents = join(homedir(), 'Library', 'LaunchAgents');
 const node = existsSync('/opt/homebrew/bin/node') ? '/opt/homebrew/bin/node' : process.execPath;
 if (!existsSync(join(source, 'build', 'detector'))) throw Error('Build the detector before installation.');
 if (!existsSync(join(source, 'build', 'MediaRemoteAdapter.framework'))) throw Error('Run npm run build:music before installation.');
+// Compile before changing an installation; a compiler error must not silently install a shell launcher.
+const helperBinary = join(source, 'build', 'EnhancedPresenceHelper');
+if (helper) execFileSync('swiftc', ['-module-cache-path', join(tmpdir(), 'enhanced-presence-swift-cache'), join(source, 'native', 'Helper.swift'), '-o', helperBinary], { stdio: 'inherit' });
 mkdirSync(root, { recursive: true, mode: 0o700 });
 if (!lstatSync(root).isDirectory() || lstatSync(root).isSymbolicLink()) throw Error('Companion destination must be a regular directory.');
 const configPath = join(root, 'config.local.json');
@@ -32,7 +35,7 @@ const bridgePath = join(root, 'bridge.local.json');
 for (const file of [configPath, bridgePath]) {
   if (existsSync(file) && (!lstatSync(file).isFile() || lstatSync(file).isSymbolicLink())) throw Error('Settings must be regular local files.');
 }
-const config = existsSync(configPath) ? validateConfig(JSON.parse(readFileSync(configPath, 'utf8'))) : validateConfig({ enabled: false, ...(flags.includes('--standalone') ? { output: 'ipc' } : {}) });
+const config = existsSync(configPath) ? validateConfig(JSON.parse(readFileSync(configPath, 'utf8'))) : validateConfig({ enabled: false, output: flags.includes('--standalone') ? 'ipc' : 'vencord' });
 const bridge = existsSync(bridgePath) ? JSON.parse(readFileSync(bridgePath, 'utf8')) : { token: randomBytes(32).toString('hex') };
 if (!/^[a-f0-9]{64}$/.test(bridge.token)) throw Error('Existing pairing configuration is invalid; it was preserved.');
 const previousApplicationId = bridge.applicationId;
@@ -40,7 +43,11 @@ const previousApplicationId = bridge.applicationId;
 const applicationId = flags.find(x => !x.startsWith('--')) ?? previousApplicationId;
 if (!/^\d{17,20}$/.test(applicationId || '')) throw Error('First install: pass your numeric Discord application ID (never a token): npm run install:companion -- 123456789012345678');
 bridge.applicationId = applicationId;
-for (const directory of ['presence-engine', 'shared', 'vendor']) cpSync(join(source, directory), join(root, directory), { recursive: true, verbatimSymlinks: true });
+// Install runtime files only, and avoid rewriting unchanged files during updates.
+for (const directory of ['presence-engine', 'shared', 'vendor/ws', 'vendor/mediaremote-adapter/bin', 'vendor/mediaremote-adapter/LICENSE']) {
+  cpSync(join(source, directory), join(root, directory), { recursive: true, verbatimSymlinks: true,
+    filter: (from, to) => !existsSync(to) || !lstatSync(from).isFile() || !lstatSync(to).isFile() || !readFileSync(from).equals(readFileSync(to)) });
+}
 const build = join(root, 'build');
 mkdirSync(build, { recursive: true });
 if (!lstatSync(build).isDirectory() || lstatSync(build).isSymbolicLink()) throw Error('Build destination must be a regular directory.');
@@ -77,12 +84,9 @@ if (helper) {
   mkdirSync(join(app, 'Contents', 'Resources'), { recursive: true });
   cpSync(join(source, 'assets', 'AppIcon.icns'), join(app, 'Contents', 'Resources', 'AppIcon.icns'));
   writeFileSync(join(app, 'Contents', 'Info.plist'), `<?xml version="1.0" encoding="UTF-8"?>\n<plist version="1.0"><dict><key>CFBundleIdentifier</key><string>app.enhancedpresence.helper</string><key>CFBundleName</key><string>EnhancedPresence Helper</string><key>CFBundleIconFile</key><string>AppIcon</string><key>CFBundleExecutable</key><string>EnhancedPresenceHelper</string><key>CFBundlePackageType</key><string>APPL</string><key>LSUIElement</key><true/><key>NSAppTransportSecurity</key><dict><key>NSAllowsLocalNetworking</key><true/></dict></dict></plist>\n`);
-  // Menu bar app that also runs the engine, so macOS privacy prompts name this app. Falls back to a plain launcher.
-  let menuBar = true;
-  try { execFileSync('swiftc', ['-module-cache-path', join(tmpdir(), 'enhanced-presence-swift-cache'), join(source, 'native', 'Helper.swift'), '-o', exe], { stdio: 'ignore' }); }
-  catch { menuBar = false; writeFileSync(exe, `#!/bin/sh\nexec '${node}' "$@"\n`, { mode: 0o755 }); }
-  try { execFileSync('codesign', ['--force', '--sign', '-', app], { stdio: 'ignore' }); } catch { /* Unsigned bundles still run. */ }
-  if (menuBar) args.unshift(exe); else args[0] = exe;
+  cpSync(helperBinary, `${exe}.new`); renameSync(`${exe}.new`, exe);
+  execFileSync('codesign', ['--force', '--sign', '-', app], { stdio: 'ignore' });
+  args.unshift(exe);
 }
 const agent = `<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n<plist version="1.0"><dict>\n<key>Label</key><string>app.enhancedpresence.engine</string>\n<key>ProgramArguments</key><array>${args.map(arg => `<string>${xml(arg)}</string>`).join('')}</array>\n<key>RunAtLoad</key><true/>\n<key>KeepAlive</key><true/>\n<key>ThrottleInterval</key><integer>30</integer>\n<key>ProcessType</key><string>Standard</string>\n<key>StandardOutPath</key><string>/dev/null</string>\n<key>StandardErrorPath</key><string>${xml(join(root, 'engine-error.log'))}</string>\n</dict></plist>\n`;
 writeFileSync(join(agents, 'app.enhancedpresence.engine.plist'), agent, { mode: 0o600 });
@@ -92,7 +96,7 @@ try { execFileSync('launchctl', ['bootout', `${domain}/app.enhancedpresence.engi
 execFileSync('sleep', ['2']); // launchd finishes unloading asynchronously
 execFileSync('launchctl', ['bootstrap', domain, join(agents, 'app.enhancedpresence.engine.plist')], { stdio: 'inherit' });
 }
-let hookNote = 'Agent hooks skipped (--no-hooks); the task timer and status will not appear.';
+let hookNote = 'Agent hook settings were left unchanged. Add --with-hooks to opt into task status.';
 if (hooks) {
   const command = `/bin/sh "${join(root, 'presence-engine', 'agent-hook.sh')}"`;
   const notes = [];
@@ -104,5 +108,5 @@ if (hooks) {
   }
   hookNote = notes.join('\n') + '\nRemove the hooks any time with: npm run install:companion -- --remove-hooks';
 }
-console.log(`Installed app.enhancedpresence.engine${start ? ' and started it' : ''}. A first install starts paused until you press Resume in Vencord.\n${hookNote}`);
-console.log(`For optional project names, enable Accessibility for ${node} and ${join(build, 'detector')}. Node access also applies to other programs run with it.`);
+console.log(`Installed app.enhancedpresence.engine${start ? ' and started it' : ''}. A first install starts paused until you press Resume in the helper or Vencord.\n${hookNote}`);
+console.log('App presence needs no Accessibility, Screen Recording, Input Monitoring or Full Disk Access. Optional project names: npm run accessibility. Do not grant permissions to Node.');

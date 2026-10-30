@@ -46,11 +46,16 @@ export function readRuntimeStatus(root, now = Date.now()) {
     }
   } } catch { usageError = 'App time data could not be loaded. Existing totals were preserved.'; }
   const raw = readPrivate(root, 'status.local.json');
-  const result = { pending: null, music: { available: false, error: 'Companion status unavailable' }, updatedAt: 0, stale: true, usage };
+  const result = { activity: null, pending: null, music: { available: false, error: 'Companion status unavailable' }, updatedAt: 0, stale: true, usage };
   if (usageError) result.usageError = usageError;
   if (!raw) return result;
   if (!Number.isSafeInteger(raw.updatedAt) || raw.updatedAt <= 0 || raw.updatedAt > now + 60000 || !raw.music || typeof raw.music.available !== 'boolean') throw Error('Invalid companion status');
   result.updatedAt = raw.updatedAt; result.stale = now - raw.updatedAt > 90000;
+  if (c.enabled && !result.stale && raw.activity && allowed(raw.activity.appId)) {
+    const a = raw.activity;
+    if (!validText(a.appName) || !validText(a.details)) throw Error('Invalid current activity');
+    result.activity = { appId: a.appId, appName: a.appName, details: a.details };
+  }
   result.music = { available: raw.music.available };
   if (raw.music.source !== undefined) {
     if (!validText(raw.music.source) || !/^[\w.-]+$/.test(raw.music.source)) throw Error('Invalid music status');

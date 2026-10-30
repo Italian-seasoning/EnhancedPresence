@@ -16,10 +16,12 @@ export function phrase(events = []) {
   const last = events.at(-1)?.c;
   if (last === 'test') return 'Running tests';
   if (last === 'build') return 'Building the project';
-  if (last === 'git') return 'Shipping changes';
+  if (last === 'git') return 'Working with Git';
   if (last === 'install') return 'Installing dependencies';
   if (last === 'delegate') return 'Coordinating agents';
   if (last === 'research') return 'Researching';
+  if (last === 'edit') return 'Editing code';
+  if (last === 'read') return 'Reviewing code';
   if (count('edit') >= 3) return 'Writing code';
   if (count('read') > count('edit') && count('read') >= 3) return 'Reading the codebase';
   return events.length ? 'Working on code' : 'Thinking';

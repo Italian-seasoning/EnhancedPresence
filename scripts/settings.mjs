@@ -1,9 +1,11 @@
 import { execFileSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 
-// Opens the settings app in your browser (the menu bar icon opens it in its own window).
+// Reuse the running helper's native window; browser fallback supports headless installs.
+const helper = join(homedir(), 'Applications', 'EnhancedPresence Helper.app', 'Contents/MacOS/EnhancedPresenceHelper');
+if (existsSync(helper)) { execFileSync(helper, ['--settings']); console.log('Requested the helper’s Settings window. If it is still starting, try again in a moment.'); process.exit(0); }
 const file = join(homedir(), 'Library', 'Application Support', 'EnhancedPresence', 'settings-session.json');
 let url;
 try { url = JSON.parse(readFileSync(file, 'utf8')).url; } catch { /* handled below */ }
