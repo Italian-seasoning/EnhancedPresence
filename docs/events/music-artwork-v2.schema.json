@@ -1,0 +1,69 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/Italian-seasoning/EnhancedPresence/main/docs/events/music-artwork-v2.schema.json",
+  "title": "Music image native IPC contract v2",
+  "description": "The existing authenticated Vencord native helper receives the same strict Apple Music request as v1. The v2 response adds a separate optional artist portrait. Album art remains the main image; the portrait is the Discord-controlled small badge. No accounts, credentials, cookies, local artwork, uploads, new listener, permissions or processes. Only exact normalized title/artist/album iTunes song matches may yield album art. Artist identity must come from a positive safe-integer artistId on that exact result. A validated canonical HTTPS music.apple.com artist page from that same result may be fetched only when its path identifies that same numeric artistId; redirects are rejected. Read only the HTML head/prefix, capped at 256 KiB, never execute it, and validate og:image against the same Apple CDN allowlist. The complete lookup has a two-second deadline; a missing, invalid or timed-out portrait must preserve album art. At most ten total HTTP requests per rolling minute, including catalog and page requests. Cache at most 64 track requests and 64 artists, deduplicate in-flight work, use one-hour complete-image success and one-minute partial/miss TTL; artist portrait successes expire after one hour and portrait misses after one minute. Only URL strings are cached. No exact album match returns null. The renderer independently validates and resolves both images, omits a missing portrait, honors icons/music settings, and rejects stale results after song/settings/pause/disconnect changes. The response type intentionally replaces the v1 string only on the v2 getMusicImages native method; v1 protocol music fields are unchanged.",
+  "$defs": {
+    "request": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "appId",
+        "title",
+        "artist",
+        "album"
+      ],
+      "properties": {
+        "appId": {
+          "const": "com.apple.Music"
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f]+$"
+        },
+        "artist": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f]+$"
+        },
+        "album": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f]+$"
+        }
+      }
+    },
+    "artworkUrl": {
+      "type": "string",
+      "maxLength": 2048,
+      "pattern": "^https://is[0-9]+-ssl\\.mzstatic\\.com/[^\\s]*$"
+    },
+    "response": {
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "albumArtworkUrl"
+          ],
+          "properties": {
+            "albumArtworkUrl": {
+              "$ref": "#/$defs/artworkUrl"
+            },
+            "artistArtworkUrl": {
+              "$ref": "#/$defs/artworkUrl"
+            }
+          }
+        }
+      ]
+    }
+  },
+  "$ref": "#/$defs/request"
+}

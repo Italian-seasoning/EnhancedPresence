@@ -119,10 +119,11 @@ test('music artwork lookup is called only for eligible, enabled Apple Music acti
   let socket; const lookups = [], outputs = [];
   const settings = { applicationId: id, bridgeToken: token, paused: false, appIcons: true };
   const artwork = 'https://is1-ssl.mzstatic.com/image/thumb/album.jpg';
+  const portrait = 'https://is2-ssl.mzstatic.com/image/thumb/artist.jpg';
   const client = createClient({ getSettings: () => settings, dispatch: x => outputs.push(x), socketFactory: () => (socket = { send() {}, close() {} }),
     shouldPublishMusic: value => value.name === 'Apple Music',
-    lookupMusicArtwork: async request => { lookups.push(request); return artwork; },
-    resolveAsset: async (_id, url) => url === artwork ? 'mp:verified-album-art' : undefined
+    lookupMusicImages: async request => { lookups.push(request); return { albumArtworkUrl: artwork, artistArtworkUrl: portrait }; },
+    resolveAsset: async (_id, url) => url === artwork ? 'mp:verified-album-art' : url === portrait ? 'mp:verified-artist-art' : undefined
   });
   t.after(() => client.stop());
   client.start(); socket.onopen();
@@ -131,6 +132,11 @@ test('music artwork lookup is called only for eligible, enabled Apple Music acti
   assert.deepEqual(lookups, [{ appId: 'com.apple.Music', title: 'Track', artist: 'Artist', album: 'Album' }]);
   assert.equal(outputs.at(-1).assets.large_image, 'mp:verified-album-art');
   assert.equal(outputs.at(-1).assets.large_text, 'Album');
+  assert.equal(outputs.at(-1).assets.small_image, 'mp:verified-artist-art');
+  assert.equal(outputs.at(-1).assets.small_text, 'Artist');
+  await socket.onmessage({ data: '{"type":"heartbeat","protocol":1}' });
+  assert.equal(lookups.length, 1);
+  assert.equal(outputs.at(-1).assets.small_image, 'mp:verified-artist-art');
   await socket.onmessage({ data: JSON.stringify(message({ ...apple, appId: 'com.spotify.client' })) });
   assert.equal(lookups.length, 1);
   settings.appIcons = false;
@@ -138,18 +144,18 @@ test('music artwork lookup is called only for eligible, enabled Apple Music acti
   assert.equal(lookups.length, 1);
   settings.appIcons = true;
   const blockedMusic = createClient({ getSettings: () => settings, dispatch: x => outputs.push(x), socketFactory: () => (socket = { send() {}, close() {} }),
-    shouldPublishMusic: () => false, lookupMusicArtwork: async request => { lookups.push(request); return artwork; } });
+    shouldPublishMusic: () => false, lookupMusicImages: async request => { lookups.push(request); return { albumArtworkUrl: artwork }; } });
   t.after(() => blockedMusic.stop());
   blockedMusic.start(); socket.onopen();
   await socket.onmessage({ data: JSON.stringify(message(apple)) });
   assert.equal(lookups.length, 1);
 });
 
-test('late music artwork cannot replace a changed song or republish after pause', async t => {
+test('late album and artist images cannot replace a changed song or republish after pause', async t => {
   let socket; const requests = [], outputs = [], settings = { applicationId: id, bridgeToken: token, paused: false, appIcons: true };
   const client = createClient({ getSettings: () => settings, dispatch: value => outputs.push(value), socketFactory: () => (socket = { send() {}, close() {} }),
     resolveAsset: async (_id, url) => url,
-    lookupMusicArtwork: request => new Promise(resolve => requests.push({ request, resolve })) });
+    lookupMusicImages: request => new Promise(resolve => requests.push({ request, resolve })) });
   t.after(() => client.stop());
   client.start(); socket.onopen();
   const first = { ...fixture, kind: 'music', appId: 'com.apple.Music', appName: 'Apple Music', details: 'First', state: 'Artist', album: 'First album' };
@@ -157,21 +163,22 @@ test('late music artwork cannot replace a changed song or republish after pause'
   const oldPending = socket.onmessage({ data: JSON.stringify(message(first)) });
   const newPending = socket.onmessage({ data: JSON.stringify(message(second)) });
   assert.equal(requests.length, 2);
-  requests[1].resolve('https://is1-ssl.mzstatic.com/image/thumb/second.jpg');
+  requests[1].resolve({ albumArtworkUrl: 'https://is1-ssl.mzstatic.com/image/thumb/second.jpg', artistArtworkUrl: 'https://is2-ssl.mzstatic.com/image/thumb/second-artist.jpg' });
   await newPending;
-  requests[0].resolve('https://is1-ssl.mzstatic.com/image/thumb/first.jpg');
+  requests[0].resolve({ albumArtworkUrl: 'https://is1-ssl.mzstatic.com/image/thumb/first.jpg', artistArtworkUrl: 'https://is2-ssl.mzstatic.com/image/thumb/first-artist.jpg' });
   await oldPending;
   assert.equal(outputs.at(-1).details, 'Second');
   assert.equal(outputs.at(-1).assets.large_text, 'Second album');
+  assert.equal(outputs.at(-1).assets.small_text, 'Artist');
   const pausedPending = socket.onmessage({ data: JSON.stringify(message({ ...second, details: 'Paused', album: 'Paused album' })) });
   client.stop();
-  requests[2].resolve('https://is1-ssl.mzstatic.com/image/thumb/paused.jpg');
+  requests[2].resolve({ albumArtworkUrl: 'https://is1-ssl.mzstatic.com/image/thumb/paused.jpg', artistArtworkUrl: 'https://is2-ssl.mzstatic.com/image/thumb/paused-artist.jpg' });
   await pausedPending;
   assert.equal(outputs.at(-1), null);
   client.start(); socket.onopen();
   const disconnectedPending = socket.onmessage({ data: JSON.stringify(message({ ...second, details: 'Disconnected', album: 'Disconnected album' })) });
   socket.onclose();
-  requests[3].resolve('https://is1-ssl.mzstatic.com/image/thumb/disconnected.jpg');
+  requests[3].resolve({ albumArtworkUrl: 'https://is1-ssl.mzstatic.com/image/thumb/disconnected.jpg', artistArtworkUrl: 'https://is2-ssl.mzstatic.com/image/thumb/disconnected-artist.jpg' });
   await disconnectedPending;
   assert.equal(outputs.at(-1), null);
 });

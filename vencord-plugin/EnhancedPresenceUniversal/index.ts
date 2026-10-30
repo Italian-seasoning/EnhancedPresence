@@ -55,7 +55,7 @@ const client = createClient({
         FluxDispatcher.dispatch({ type: "LOCAL_ACTIVITY_UPDATE", socketId: "EnhancedPresenceUniversal", activity });
     },
     resolveAsset: resolveArtwork,
-    lookupMusicArtwork: (request: MusicArtworkRequest) => Native?.getMusicArtwork ? Native.getMusicArtwork(request) : Promise.resolve(null),
+    lookupMusicImages: (request: MusicArtworkRequest) => Native?.getMusicImages ? Native.getMusicImages(request) : Promise.resolve(null),
     shouldPublishMusic: () => {
         const user = UserStore.getCurrentUser();
         const ownId = settings.store.applicationId.trim() || localPairing?.applicationId;

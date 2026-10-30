@@ -37,10 +37,10 @@ export function parseActivity(text, applicationId) {
   return activity;
 }
 
-export function createClient({ getSettings, dispatch, socketFactory, resolveAsset = async () => undefined, lookupMusicArtwork = async () => null, shouldPublishMusic = () => true, status = () => {}, clock = () => Date.now(), timers = globalThis }) {
-  let socket, retryTimer, watchdog, running = false, retry = 1000, freshAt = 0, revision = 0, latestMusic, published;
+export function createClient({ getSettings, dispatch, socketFactory, resolveAsset = async () => undefined, lookupMusicImages = async () => null, shouldPublishMusic = () => true, status = () => {}, clock = () => Date.now(), timers = globalThis }) {
+  let socket, retryTimer, watchdog, running = false, retry = 1000, freshAt = 0, revision = 0, latestMusic, musicImageCache, published;
   const publish = activity => { const key = JSON.stringify(activity); if (key !== published) { published = key; dispatch(activity); } };
-  const clear = () => { revision++; publish(null); };
+  const clear = () => { revision++; musicImageCache = undefined; publish(null); };
   const validSettings = s => !s.paused && /^\d{17,20}$/.test(s.applicationId) && /^[a-f0-9]{64}$/.test(s.bridgeToken);
   function connect() {
     if (!running) return;
@@ -73,17 +73,36 @@ export function createClient({ getSettings, dispatch, socketFactory, resolveAsse
         if (activity.type === 2 && !shouldPublishMusic(activity)) { clear(); return; }
         const version = ++revision;
         if (current.appIcons === false) delete activity.assets;
-        if (activity.type === 2 && !activity.assets && current.appIcons === true
+        if (activity.type === 2 && current.appIcons === true
           && musicSource?.appId === 'com.apple.Music'
+          && (!activity.assets || validMusicArtwork(activity.assets.large_image))
           && [musicSource.details, musicSource.state, musicSource.album].every(value => typeof value === 'string' && value.length > 0 && value.length <= 128 && !/[\x00-\x1f\x7f-\x9f]/.test(value))) {
           try {
-            const artwork = await lookupMusicArtwork({ appId: musicSource.appId, title: musicSource.details, artist: musicSource.state, album: musicSource.album });
+            const request = { appId: musicSource.appId, title: musicSource.details, artist: musicSource.state, album: musicSource.album };
+            const key = JSON.stringify([current.applicationId, request.appId, request.title, request.artist, request.album]);
+            let images;
+            if (musicImageCache?.key === key && musicImageCache.retryAt > clock()) images = musicImageCache.images;
+            else {
+              images = await lookupMusicImages(request);
+              const latestSettings = getSettings();
+              if (version !== revision || ws !== socket || !running || !validSettings(latestSettings)
+                || latestSettings.applicationId !== s.applicationId || latestSettings.bridgeToken !== s.bridgeToken
+                || latestSettings.appIcons !== true || !shouldPublishMusic(activity)) return;
+              const albumArtworkUrl = validMusicArtwork(images?.albumArtworkUrl) ? images.albumArtworkUrl : undefined;
+              const artistArtworkUrl = validMusicArtwork(images?.artistArtworkUrl) ? images.artistArtworkUrl : undefined;
+              musicImageCache = { key, images: albumArtworkUrl ? { albumArtworkUrl, ...(artistArtworkUrl ? { artistArtworkUrl } : {}) } : null,
+                retryAt: clock() + (albumArtworkUrl && artistArtworkUrl ? 60 * 60 * 1000 : 60 * 1000) };
+            }
             if (version !== revision || ws !== socket || !running) return;
-            if (validMusicArtwork(artwork)) {
-              activity.assets = { large_image: artwork, large_text: musicSource.album };
-              const envelope = JSON.parse(latestMusic);
-              envelope.activity.artworkUrl = artwork;
-              latestMusic = JSON.stringify(envelope);
+            if (images && typeof images === 'object') {
+              const album = validMusicArtwork(images.albumArtworkUrl) ? images.albumArtworkUrl : null;
+              const artist = validMusicArtwork(images.artistArtworkUrl) ? images.artistArtworkUrl : null;
+              if (album) activity.assets = { ...(activity.assets ?? {}), large_image: album, large_text: musicSource.album };
+              if (artist) {
+                activity.assets ??= {};
+                activity.assets.small_image = artist;
+                activity.assets.small_text = musicSource.state;
+              }
             }
           } catch { /* Missing cover art never interrupts presence. */ }
         }
@@ -94,15 +113,30 @@ export function createClient({ getSettings, dispatch, socketFactory, resolveAsse
           if (icon) activity.assets = { large_image: icon, large_text: activity.name };
         }
         if (activity.assets) {
-          const key = activity.assets.large_image;
-          let resolved;
-          let timeout;
-          try { resolved = await Promise.race([resolveAsset(s.applicationId, key), new Promise(r => { timeout = timers.setTimeout(() => r(undefined), 1500); })]); } catch { /* omit unavailable icons */ }
-          finally { timers.clearTimeout(timeout); }
-          if (resolved) activity.assets.large_image = resolved;
-          else delete activity.assets;
+          const keys = ['large_image', 'small_image'].filter(key => typeof activity.assets[key] === 'string');
+          const resolved = await Promise.all(keys.map(async key => {
+            let timeout;
+            try {
+              const value = await Promise.race([resolveAsset(s.applicationId, activity.assets[key]), new Promise(r => { timeout = timers.setTimeout(() => r(undefined), 1500); })]);
+              return [key, value];
+            } catch { return [key, undefined]; }
+            finally { timers.clearTimeout(timeout); }
+          }));
+          const latestSettings = getSettings();
+          if (version !== revision || ws !== socket || !running || !validSettings(latestSettings)
+            || latestSettings.applicationId !== s.applicationId || latestSettings.bridgeToken !== s.bridgeToken
+            || latestSettings.appIcons !== current.appIcons || (activity.type === 2 && !shouldPublishMusic(activity))) return;
+          for (const [key, value] of resolved) {
+            if (value) activity.assets[key] = value;
+            else if (key === 'large_image' && activity.assets.large_image && validMusicArtwork(activity.assets.large_image)) continue;
+            else delete activity.assets[key];
+          }
+          if (!activity.assets.large_image && !activity.assets.small_image) delete activity.assets;
         }
-        if (version === revision && ws === socket && running && validSettings(getSettings()) && (activity.type !== 2 || shouldPublishMusic(activity))) publish(activity);
+        const finalSettings = getSettings();
+        if (version === revision && ws === socket && running && validSettings(finalSettings)
+          && finalSettings.applicationId === s.applicationId && finalSettings.bridgeToken === s.bridgeToken
+          && finalSettings.appIcons === current.appIcons && (activity.type !== 2 || shouldPublishMusic(activity))) publish(activity);
       } catch { clear(); status('Invalid engine message'); ws.close(); }
     };
     ws.onerror = () => ws.close();

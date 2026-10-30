@@ -36,8 +36,10 @@ Enhanced Presence is independent of Discord and Vencord. Vencord modifies Discor
 - Allowed app names, artwork and elapsed time.
 - Compact native menu with connection, current activity, Pause and Settings.
 - Optional Claude Code/Codex task status such as Editing code, Reviewing code and Running tests. Fixed phrases require no model calls.
-- Apple Music song title, artist, album and available album cover; quiet hours, custom text and local app-time totals.
-- Clears activity on pause, idle, sleep, lock, private apps or detector failure.
+- Apple Music song title, artist, album, album cover and available artist portrait; quiet hours, custom text and local app-time totals.
+- App activity clears on idle or private apps. Music stays visible while playing; pause, sleep, lock, quiet hours and detector failure clear it.
+
+Choose **Prefer Apple Music** in Settings to keep your track visible in the background.
 
 Vencord supports app names and artwork. Standalone mode avoids modifying Discord and shows text only; Discord may display your Developer Portal application's name there.
 
@@ -47,7 +49,7 @@ Core app presence needs **no Accessibility, Screen Recording, Input Monitoring, 
 
 Project/document names are optional, per app and off by default. Some supported apps need Accessibility for the named EnhancedPresence Helper. If names are unavailable, leave them off; generic presence still works. Settings and pairing remain local. The services use authenticated loopback connections and reject foreign origins. There is no telemetry or account login.
 
-Messages, Mail, Photos, password managers and Discord are always blocked. The plugin may fetch public app artwork through Discord; installed local icons are never uploaded. When Apple Music sharing and icons are enabled, a cached Apple catalog lookup uses the shared song title, artist and album to find an exact cover match. No music account, local artwork or library access is required. Unavailable covers fall back to the app icon. One persistent Node engine runs inside the helper. Vencord repair responds to file changes instead of starting Node on a repeating timer.
+Messages, Mail, Photos, password managers and Discord are always blocked from app tracking. The plugin may fetch public app artwork through Discord; installed local icons are never uploaded. When Apple Music sharing and icons are enabled, a cached Apple catalog lookup uses the shared song title, artist and album to find an exact cover match and a public artist portrait. Album art is the main image; the artist portrait is a small badge whose position Discord controls. No music account, local artwork or library access is required. Unavailable covers fall back to the app icon, and unavailable portraits are omitted. One persistent Node engine runs inside the helper. Vencord repair responds to file changes instead of starting Node on a repeating timer.
 
 ### Optional task status
 
@@ -70,7 +72,7 @@ To uninstall the companion, reopen **Install Enhanced Presence.app** and choose 
 | Application name instead of app name | Standalone IPC is active. Use the Vencord option for app names and artwork. |
 | No activity | Allow the foreground app, Resume, enable Discord activity sharing, and account for the configured switch delay. |
 | No task status | Enable optional hooks, review Codex hook trust, and use an allowed editor/agent app. |
-| No album cover | Enable icons in the plugin. Covers need an exact Apple catalog match and network access; unmatched or local recordings use the app icon. |
+| No album cover or artist portrait | Enable icons in the plugin. Images need an exact Apple catalog match and network access. Unmatched recordings use the app icon; artists without public portraits have no badge. |
 | Names unavailable | Keep names off or review the optional helper permission. Never grant Node broad access. |
 
 ## Build from source

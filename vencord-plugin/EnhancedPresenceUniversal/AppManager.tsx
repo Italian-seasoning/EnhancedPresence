@@ -119,7 +119,7 @@ export function AppManager({ native, getStatus, setPaused, setAppIcons, enableSh
             <label className="ep-idle">Share Apple Music<input type="checkbox" disabled={busy} checked={data.music.enabled && data.music.sources.includes("com.apple.Music")} onChange={event => void saveBehavior({ music: { enabled: event.target.checked, sources: ["com.apple.Music"] } })} /></label>
             {data.music.enabled && <>
                 <label className="ep-idle">When Apple Music is playing<select value={data.music.priority} disabled={busy} onChange={event => void saveBehavior({ music: { priority: event.target.value as "music" | "app" } })}><option value="music">Prefer Apple Music</option><option value="app">Prefer the active app</option></select></label>
-                <p className="ep-hint">Apple Music must also be allowed in Your apps. With icons enabled, song, artist and album names are sent to Apple to find public album covers.</p>
+                <p className="ep-hint">Apple Music must also be allowed in Your apps. With icons enabled, song, artist and album names are sent to Apple to find public album covers and artist portraits. Prefer Apple Music keeps a playing track visible in the background while your Mac is unlocked.</p>
                 <p className="ep-hint">{runtime?.stale ? "Apple Music status is out of date. Check that the companion is running." : runtime?.music.available ? "Apple Music provider ready." : runtime?.music.error || "Waiting for Apple Music…"}</p>
             </>}
         </div>}

@@ -151,7 +151,8 @@ test('Apple Music selection respects visibility, pause and foreground priority',
   const activity = { appId: 'com.apple.dt.Xcode', details: 'Developing' };
   const music = normalizeNowPlaying({ ...track, bundleIdentifier: 'com.apple.Music' }, now);
   const config = { enabled: true, allowlist: [music.appId], denylist: [], music: { enabled: true, sources: ['com.apple.Music'], priority: 'music' } };
-  const choose = (value = music, options = config, foreground = activity.appId) => selectMusicActivity(activity, value, options, foreground);
+  const snapshot = { appId: 'com.apple.dt.Xcode', pid: 8, idleSeconds: 10, inactive: false };
+  const choose = (value = music, options = config, foreground = activity.appId, current = snapshot) => selectMusicActivity(activity, value, options, foreground, current);
   assert.equal(choose(), music);
   assert.equal(choose(null), activity);
   assert.equal(choose(music, { ...config, enabled: false }), activity);
@@ -163,4 +164,32 @@ test('Apple Music selection respects visibility, pause and foreground priority',
   assert.equal(choose(music, foregroundOnly), activity);
   assert.equal(choose(music, foregroundOnly, music.appId), music);
   assert.equal(choose(music, { ...config, allowlist: [] }), activity);
+});
+
+test('music priority remains visible after app idle or during a private foreground app', () => {
+  const music = normalizeNowPlaying({ ...track, bundleIdentifier: 'com.apple.Music' }, now);
+  const config = { enabled: true, allowlist: ['com.apple.Music'], denylist: [], music: { enabled: true, sources: ['com.apple.Music'], priority: 'music' } };
+  assert.equal(selectMusicActivity(null, music, config, 'com.apple.dt.Xcode', { appId: 'com.apple.dt.Xcode', pid: 10, idleSeconds: 900, inactive: false }), music);
+  assert.equal(selectMusicActivity(null, music, config, 'com.apple.Passwords', { appId: 'com.apple.Passwords', pid: 11, idleSeconds: 2, inactive: false }), music);
+});
+
+test('music is cleared for stale, asleep, locked, quiet, disabled, or unapproved state', () => {
+  const music = normalizeNowPlaying({ ...track, bundleIdentifier: 'com.apple.Music' }, now);
+  const config = { enabled: true, allowlist: ['com.apple.Music'], denylist: [], music: { enabled: true, sources: ['com.apple.Music'], priority: 'music' } };
+  const awake = { appId: 'com.apple.dt.Xcode', pid: 10, idleSeconds: 900, inactive: false };
+  for (const snapshot of [null, { ...awake, inactive: true }, { ...awake, pid: 0 }, { ...awake, idleSeconds: NaN }]) {
+    assert.equal(selectMusicActivity(null, music, config, 'com.apple.dt.Xcode', snapshot), null);
+  }
+  assert.equal(selectMusicActivity(null, music, config, 'com.apple.dt.Xcode', awake, true), null);
+  assert.equal(selectMusicActivity(null, music, { ...config, enabled: false }, 'com.apple.dt.Xcode', awake), null);
+  assert.equal(selectMusicActivity(null, music, { ...config, denylist: ['com.apple.Music'] }, 'com.apple.dt.Xcode', awake), null);
+});
+
+test('app priority publishes music only while Apple Music is foreground', () => {
+  const music = normalizeNowPlaying({ ...track, bundleIdentifier: 'com.apple.Music' }, now);
+  const config = { enabled: true, allowlist: ['com.apple.Music'], denylist: [], music: { enabled: true, sources: ['com.apple.Music'], priority: 'app' } };
+  const idleMusic = { appId: 'com.apple.Music', pid: 10, idleSeconds: 900, inactive: false };
+  assert.equal(selectMusicActivity(null, music, config, idleMusic.appId, idleMusic), music);
+  const privateApp = { appId: 'com.apple.Passwords', pid: 11, idleSeconds: 2, inactive: false };
+  assert.equal(selectMusicActivity(null, music, config, privateApp.appId, privateApp), null);
 });

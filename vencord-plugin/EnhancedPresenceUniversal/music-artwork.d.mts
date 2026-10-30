@@ -5,7 +5,12 @@ export interface MusicArtworkRequest {
   album: string;
 }
 
-export function createMusicArtworkLookup(options?: {
+export interface MusicImages {
+  albumArtworkUrl: string;
+  artistArtworkUrl?: string;
+}
+
+export function createMusicImagesLookup(options?: {
   fetchImpl?: typeof fetch;
   now?: () => number;
-}): (input: unknown) => Promise<string | null>;
+}): (input: unknown) => Promise<MusicImages | null>;
