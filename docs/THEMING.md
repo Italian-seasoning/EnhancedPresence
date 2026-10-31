@@ -29,6 +29,15 @@ The CSS leaves `html`, `body` and the app backing transparent and layers translu
 - **Per-DM wallpaper:** `:root[data-ep-dm-wallpaper]` is distinct from the direct-message marker and is set only for a selected 1:1 or group DM with a saved background. Use the prevalidated `--ep-dm-wallpaper` value only on the chat-content backdrop pseudo layer; don't apply it to servers or the message list itself.
 - **Presence+ panel:** `.ep-plus-*` rules may refine the panel while this theme is selected. Don't let the standalone theme change the panel's data, actions, or ownership of local background settings.
 
+## Snapchat theme
+
+`themes/PresenceSnapchat.theme.css` reuses the selector map above with its own `--ep-snapchat-*` tokens. Never share tokens or rules between the two theme files or `suite.css`.
+
+- **Tokens:** `--ep-snapchat-yellow` and `--ep-snapchat-on-yellow` (always black), surface tokens (`chat`, `sidebar`, `glass`, `floating`, `field`, `border`), `text`/`muted`, and sender colors `--ep-snapchat-me` (red) and `--ep-snapchat-friend` (blue) with `-high-contrast` variants that `prefers-contrast: more` swaps in along with a thicker `--ep-snapchat-rail`. Light-mode sender colors must reach 4.5:1 on white and on the field surface; `tests/theme.test.mjs` checks this.
+- **Yellow rule:** Snap Yellow is only a fill behind black text (selected DM row, primary buttons, your reactions, the expanded composer toggle and hovered menu icons). Yellow has about 1.1:1 contrast with white, so a yellow fill also gets the `--ep-snapchat-selected-edge` inset edge, and yellow is never used for text, focus rings or hairlines.
+- **Messages:** no bubbles. Regular message text gets a left rail colored by sender; usernames become uppercase sender labels. Discord's inline role colors in servers still win over the label color. One-to-one DMs clip avatars (as Messages does) but keep the name header visible. The header and composer stay in their native positions, so there are no scroll-spacer or floating-header offsets to maintain.
+- **Shared hooks:** the composer-menu, DM-density and DM-wallpaper rules use the same plugin attributes as Messages, with `--ep-snapchat-wallpaper-veil`.
+
 Class stems and structural relationships are compatibility hooks, not a public Discord API. Recheck them after Discord updates rather than copying generated suffixes into a new theme. Keep a new theme's palette separate from its component rules so the same surface map can guide another design.
 
 ## Update workflow
