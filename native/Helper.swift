@@ -1,5 +1,7 @@
 import AppKit
 import CoreFoundation
+import Darwin
+import UniformTypeIdentifiers
 import WebKit
 
 let settingsNotification = NSNotification.Name("app.enhancedpresence.openSettings")
@@ -63,6 +65,51 @@ func settingsURL(_ text: String) -> URL? {
           parts.queryItems?.count == 1, let token = parts.queryItems?.first, token.name == "t",
           token.value?.range(of: "^[a-f0-9]{48}$", options: .regularExpression) != nil else { return nil }
     return parts.url
+}
+
+func validSelectedApplicationID(_ id: String) -> Bool {
+    id.count <= 200 && id.range(of: "^[A-Za-z0-9_-]+(?:\\.[A-Za-z0-9_-]+)+$", options: .regularExpression) != nil
+}
+func validSelectedApplicationName(_ name: String) -> Bool {
+    let length = name.utf16.count
+    return length >= 2 && length <= 128 && !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        && !name.unicodeScalars.contains { $0.value <= 0x1f || (0x7f...0x9f).contains($0.value) }
+}
+func selectedApplicationInfo(_ url: URL) -> [String: String]? {
+    guard url.isFileURL, url.pathExtension.lowercased() == "app" else { return nil }
+    var bundleInfo = stat(), contentsInfo = stat()
+    let contentsURL = url.appendingPathComponent("Contents", isDirectory: true)
+    guard lstat(url.path, &bundleInfo) == 0, (bundleInfo.st_mode & S_IFMT) == S_IFDIR,
+          lstat(contentsURL.path, &contentsInfo) == 0, (contentsInfo.st_mode & S_IFMT) == S_IFDIR else { return nil }
+    let infoURL = contentsURL.appendingPathComponent("Info.plist")
+    let descriptor = open(infoURL.path, O_RDONLY | O_NOFOLLOW | O_CLOEXEC)
+    guard descriptor >= 0 else { return nil }
+    defer { close(descriptor) }
+    var fileInfo = stat()
+    guard fstat(descriptor, &fileInfo) == 0, (fileInfo.st_mode & S_IFMT) == S_IFREG,
+          fileInfo.st_size >= 0, fileInfo.st_size <= 65536 else { return nil }
+    var bytes = [UInt8](repeating: 0, count: Int(fileInfo.st_size))
+    var offset = 0
+    while offset < bytes.count {
+        let count = bytes.withUnsafeMutableBytes { raw in
+            Darwin.read(descriptor, raw.baseAddress!.advanced(by: offset), raw.count - offset)
+        }
+        guard count > 0 else { return nil }
+        offset += count
+    }
+    guard let metadata = try? PropertyListSerialization.propertyList(from: Data(bytes), options: [], format: nil) as? [String: Any],
+          let identifier = metadata["CFBundleIdentifier"] as? String, validSelectedApplicationID(identifier) else { return nil }
+    let rawName = metadata["CFBundleDisplayName"] ?? metadata["CFBundleName"]
+    let name = (rawName as? String) ?? url.deletingPathExtension().lastPathComponent
+    guard
+          validSelectedApplicationName(name) else { return nil }
+    return ["id": identifier, "name": name]
+}
+func isTrustedApplicationPickerMessage(_ message: WKScriptMessage, settingsURL: URL?, settingsView: WKWebView?) -> Bool {
+    guard message.name == "chooseApplication", message.frameInfo.isMainFrame,
+          message.webView === settingsView, message.webView?.url == settingsURL,
+          let body = message.body as? [String: Any], body.isEmpty else { return false }
+    return settingsURL != nil
 }
 
 struct VoiceHUDSpeaker: Equatable {
@@ -441,6 +488,27 @@ if CommandLine.arguments.contains("--self-test") {
     try! FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: runtime.path)
     assert(isManualLaunch([], resources: scratch))
     assert(!isManualLaunch(["--settings"], resources: scratch))
+    let chosenApp = scratch.appendingPathComponent("Test.app"), contents = chosenApp.appendingPathComponent("Contents")
+    try! FileManager.default.createDirectory(at: contents, withIntermediateDirectories: true)
+    let appInfo: [String: String] = ["CFBundleIdentifier": "org.example.Test", "CFBundleName": "Test App", "CFBundlePackageType": "APPL"]
+    let appData = try! PropertyListSerialization.data(fromPropertyList: appInfo, format: .xml, options: 0)
+    let infoURL = contents.appendingPathComponent("Info.plist")
+    try! appData.write(to: infoURL)
+    assert((selectedApplicationInfo(chosenApp) as NSDictionary?)?.isEqual(["id": "org.example.Test", "name": "Test App"]) == true)
+    let noDisplayName: [String: String] = ["CFBundleIdentifier": "org.example.Test", "CFBundlePackageType": "APPL"]
+    try! PropertyListSerialization.data(fromPropertyList: noDisplayName, format: .xml, options: 0).write(to: infoURL)
+    assert((selectedApplicationInfo(chosenApp) as NSDictionary?)?.isEqual(["id": "org.example.Test", "name": "Test"]) == true)
+    var oversizedInfo = appInfo; oversizedInfo["ExtraMetadata"] = String(repeating: "x", count: 65536)
+    let oversizedData = try! PropertyListSerialization.data(fromPropertyList: oversizedInfo, format: .xml, options: 0)
+    assert(oversizedData.count > 65536)
+    try! oversizedData.write(to: infoURL)
+    assert(selectedApplicationInfo(chosenApp) == nil)
+    let invalidInfo: [String: String] = ["CFBundleIdentifier": "../private", "CFBundleName": "Invalid App"]
+    try! PropertyListSerialization.data(fromPropertyList: invalidInfo, format: .xml, options: 0).write(to: infoURL)
+    assert(selectedApplicationInfo(chosenApp) == nil)
+    try! FileManager.default.removeItem(at: infoURL)
+    try! FileManager.default.createSymbolicLink(at: infoURL, withDestinationURL: scratch.appendingPathComponent("missing.plist"))
+    assert(selectedApplicationInfo(chosenApp) == nil)
     try! FileManager.default.removeItem(at: scratch)
     let now = Date().timeIntervalSince1970 * 1000
     let live: [String: Any] = ["updatedAt": now, "perf": ["source": "vencord"], "activity": ["appName": "Codex"]]
@@ -452,6 +520,11 @@ if CommandLine.arguments.contains("--self-test") {
     let token = String(repeating: "a", count: 48)
     assert(settingsURL("http://127.0.0.1:43822/?t=\(token)") != nil)
     for text in ["https://example.com/?t=\(token)", "http://localhost:43822/?t=\(token)", "http://127.0.0.1:43822/?t=x", "http://127.0.0.1:43822/?t=\(token)&other=1"] { assert(settingsURL(text) == nil) }
+    assert(validSelectedApplicationID("org.example.notes"))
+    assert(!validSelectedApplicationID("../notes"))
+    assert(validSelectedApplicationName("Apple Notes"))
+    assert(!validSelectedApplicationName("A"))
+    assert(!validSelectedApplicationName("Notes\nPrivate"))
     let voice: [String: Any] = ["version": 1, "updatedAt": now, "channelId": "123456789012345678", "channelName": "General",
         "selfMute": false, "selfDeaf": true, "speakers": [["id": "223456789012345678", "name": "Alex", "speaking": true]]]
     let voiceStatus = voiceHUDStatus(voice, now: now)
@@ -589,7 +662,7 @@ func privateJSON(_ name: String) -> [String: Any]? {
     return (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
 }
 
-final class Helper: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWindowDelegate, WKNavigationDelegate {
+final class Helper: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWindowDelegate, WKNavigationDelegate, WKScriptMessageHandlerWithReply {
     let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
     let connection = NSMenuItem(title: "Starting…", action: nil, keyEquivalent: "")
     let activity = NSMenuItem(title: "", action: nil, keyEquivalent: "")
@@ -717,6 +790,7 @@ final class Helper: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWindowDel
         if let window { window.makeKeyAndOrderFront(nil); NSApp.activate(ignoringOtherApps: true); return }
         let configuration = WKWebViewConfiguration()
         configuration.websiteDataStore = .nonPersistent()
+        configuration.userContentController.addScriptMessageHandler(self, contentWorld: .page, name: "chooseApplication")
         let view = WKWebView(frame: .zero, configuration: configuration)
         view.navigationDelegate = self
         let created = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 860, height: 620), styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false)
@@ -735,8 +809,40 @@ final class Helper: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWindowDel
             voiceWindow = nil; lastVoiceHUDStatus = nil
             return
         }
-        (window?.contentView as? WKWebView)?.stopLoading()
+        if let view = window?.contentView as? WKWebView {
+            view.stopLoading()
+            view.configuration.userContentController.removeScriptMessageHandler(forName: "chooseApplication", contentWorld: .page)
+        }
         window?.contentView = nil; window = nil
+    }
+
+    func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage, replyHandler: @escaping (Any?, String?) -> Void) {
+        guard isTrustedApplicationPickerMessage(message, settingsURL: sessionURL(), settingsView: window?.contentView as? WKWebView) else {
+            replyHandler(nil, "Settings session is no longer valid")
+            return
+        }
+        DispatchQueue.main.async { [weak self] in
+            guard let self, isTrustedApplicationPickerMessage(message, settingsURL: self.sessionURL(), settingsView: self.window?.contentView as? WKWebView) else {
+                replyHandler(NSNull(), nil)
+                return
+            }
+            let panel = NSOpenPanel()
+            panel.title = "Add an Application"
+            panel.message = "Choose an application. Its name and identifier will prefill the form; nothing is added until you confirm."
+            panel.prompt = "Choose Application"
+            panel.allowedContentTypes = [.applicationBundle]
+            panel.canChooseFiles = true
+            panel.canChooseDirectories = false
+            panel.allowsMultipleSelection = false
+            panel.treatsFilePackagesAsDirectories = false
+            guard panel.runModal() == .OK, let url = panel.url,
+                  let selection = selectedApplicationInfo(url),
+                  isTrustedApplicationPickerMessage(message, settingsURL: self.sessionURL(), settingsView: self.window?.contentView as? WKWebView) else {
+                replyHandler(NSNull(), nil)
+                return
+            }
+            replyHandler(selection, nil)
+        }
     }
 
     @objc func toggleVoiceHUD() {

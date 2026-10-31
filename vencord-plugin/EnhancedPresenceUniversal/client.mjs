@@ -8,8 +8,8 @@ export function parseActivity(text, applicationId) {
   if (m.type === 'heartbeat') return undefined;
   if (m.type !== 'presence_update') throw Error('Unsupported message');
   const a = m.activity;
-  const valid = x => typeof x === 'string' && x.length >= 1 && x.length <= 128 && !/[\x00-\x1f\x7f-\x9f]/.test(x);
-  if (!a || !valid(a.appId) || !valid(a.appName) || !valid(a.details) || a.privacyLevel !== 'limited' || !Number.isSafeInteger(a.startTimestamp) || a.startTimestamp <= 0 || a.startTimestamp > Date.now() / 1000 + 60) throw Error('Invalid activity');
+  const valid = (x, max = 128) => typeof x === 'string' && x.length >= 1 && x.length <= max && !/[\x00-\x1f\x7f-\x9f]/.test(x);
+  if (!a || !valid(a.appId, 200) || !valid(a.appName) || !valid(a.details) || a.privacyLevel !== 'limited' || !Number.isSafeInteger(a.startTimestamp) || a.startTimestamp <= 0 || a.startTimestamp > Date.now() / 1000 + 60) throw Error('Invalid activity');
   if (a.kind !== undefined && !['app', 'music'].includes(a.kind)) throw Error('Invalid activity kind');
   const music = a.kind === 'music';
   if (a.album !== undefined && (!music || !valid(a.album))) throw Error('Invalid album');

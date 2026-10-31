@@ -45,6 +45,11 @@ test('settings changes validate and persist', async t => {
   assert.equal((await post(base, token, 'general', { output: 'nonsense' })).status, 400);
   assert.equal((await post(base, token, 'agent', { provider: 'haiku', intervalMinutes: 30, showProject: false })).status, 200);
   assert.equal((await post(base, token, 'app', { id: 'com.blackmagic-design.DaVinciResolve', visibility: 'blocked' })).status, 200);
+  assert.equal((await post(base, token, 'app', { id: 'org.example.notes', visibility: 'allowed', create: true, name: 'Example Notes', details: 'Writing notes' })).status, 200);
+  const custom = JSON.parse(readFileSync(join(root, 'config.local.json'), 'utf8'));
+  assert.deepEqual(custom.profiles['org.example.notes'], { name: 'Example Notes', details: 'Writing notes' });
+  assert.ok(custom.allowlist.includes('org.example.notes'));
+  assert.equal((await post(base, token, 'app', { id: 'org.example.notes', visibility: 'allowed', create: true, name: 'Changed', details: 'Changed' })).status, 400);
   assert.equal((await post(base, token, 'nope', {})).status, 404);
   assert.equal((await fetch(`${base}/api/general`, { method: 'POST', headers: { 'x-ep-token': token, 'content-type': 'text/plain' }, body: '{}' })).status, 404);
 });

@@ -32,6 +32,7 @@ Object.assign(icons, {
   compressor: 'https://is1-ssl.mzstatic.com/image/thumb/Purple211/v4/fa/10/68/fa106822-d60c-9841-bb2d-0ced2a1612f7/AppIcon-0-85-220-0-6-0-0-2x-sRGB-0-0.png/512x512bb.png',
   xcode: 'https://is1-ssl.mzstatic.com/image/thumb/Purple211/v4/e0/4c/e9/e04ce9a1-ad15-881d-d02d-598fe624bd94/Xcode-0-85-220-0-6-0-0-2x-P3-0-0.png/512x512bb.png',
   'logic-pro': 'https://is1-ssl.mzstatic.com/image/thumb/Purple221/v4/ab/ad/6f/abad6fff-cdec-45d3-5eae-4c443b1da652/AppIcon-0-85-220-0-6-0-0-2x-0-0-0-0-0.png/512x512bb.png',
+  notes: 'https://upload.wikimedia.org/wikipedia/commons/1/18/Notes_%28iOS_26%29_app_icon.png',
   'pixelmator-pro': 'https://is1-ssl.mzstatic.com/image/thumb/Purple211/v4/a1/e9/19/a1e91908-afba-6b30-d789-b03300253ab2/AppIcon-0-0-85-220-0-0-5-0-2x-0-0-0.png/512x512bb.png',
   pages: 'https://is1-ssl.mzstatic.com/image/thumb/Purple211/v4/e4/d1/99/e4d19916-72b3-3559-72da-d4c43d26c525/AppIcon-0-0-1x_U007epad-0-0-0-1-0-0-P3-0-0-85-220-0.png/512x512bb.jpg',
   numbers: 'https://is1-ssl.mzstatic.com/image/thumb/Purple211/v4/ca/f2/53/caf253e3-c61a-7606-b270-e263cac05534/AppIcon-0-0-1x_U007epad-0-0-0-1-0-0-P3-0-0-85-220-0.png/512x512bb.jpg',

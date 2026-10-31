@@ -15,6 +15,8 @@ const id = 'com.blackmagic-design.DaVinciResolve';
 test('app manager returns public controls without private config and keeps protected apps blocked', () => fixture((root) => {
   const data = readControls(root);
   assert.equal(data.apps.find(a => a.id === id).visibility, 'allowed');
+  const notes = data.apps.find(a => a.id === 'com.apple.Notes');
+  assert.deepEqual([notes.name, notes.details, notes.visibility, notes.supportsName], ['Apple Notes', 'Writing notes', 'hidden', false]);
   assert.equal(data.apps.find(a => a.id === 'com.apple.mail').visibility, 'blocked');
   assert.equal(JSON.stringify(data).includes('PRIVATE'), false);
   assert.throws(() => updateApp(root, { id: 'com.apple.mail', visibility: 'allowed' }));
@@ -35,6 +37,37 @@ test('invalid app edits and idle durations leave the saved configuration unchang
   assert.throws(() => updateIdle(root, 1));
   assert.equal(readFileSync(path, 'utf8'), before);
   assert.equal(updateIdle(root, 600).idleSeconds, 600);
+}));
+test('adding an application requires a bounded new custom profile and explicit allow', () => fixture((root, path) => {
+  const appId = 'org.example.notesapp';
+  const data = updateApp(root, { id: appId, visibility: 'allowed', create: true, name: 'Example Notes', details: 'Writing notes' });
+  const added = data.apps.find(app => app.id === appId);
+  assert.deepEqual([added.name, added.details, added.visibility, added.custom, added.editable], ['Example Notes', 'Writing notes', 'allowed', true, true]);
+  const saved = JSON.parse(readFileSync(path, 'utf8'));
+  assert.deepEqual(saved.profiles[appId], { name: 'Example Notes', details: 'Writing notes' });
+  assert.ok(saved.allowlist.includes(appId));
+  const beforeDuplicate = readFileSync(path, 'utf8');
+  assert.throws(() => updateApp(root, { id: appId, visibility: 'allowed', create: true, name: 'Changed', details: 'Changed' }));
+  assert.equal(readFileSync(path, 'utf8'), beforeDuplicate);
+}));
+test('new app creation rejects protected, previously blocked, malformed or unconfirmed profiles without changes', () => fixture((root, path) => {
+  const appId = 'org.example.privateapp';
+  const config = JSON.parse(readFileSync(path, 'utf8'));
+  config.denylist.push(appId);
+  writeFileSync(path, JSON.stringify(config), { mode: 0o600 });
+  const before = readFileSync(path, 'utf8');
+  for (const input of [
+    { id: '__proto__', visibility: 'allowed', create: true, name: 'Prototype', details: 'Using app' },
+    { id: 'constructor', visibility: 'allowed', create: true, name: 'Constructor', details: 'Using app' },
+    { id: 'malformed', visibility: 'allowed', create: true, name: 'Malformed', details: 'Using app' },
+    { id: 'com.apple.mail', visibility: 'allowed', create: true, name: 'Mail', details: 'Checking mail' },
+    { id: appId, visibility: 'allowed', create: true, name: 'Private', details: 'Writing notes' },
+    { id: 'org.example.newapp', visibility: 'hidden', create: true, name: 'New app', details: 'Using app' },
+    { id: 'org.example.newapp', visibility: 'allowed', create: true, name: 'New\napp', details: 'Using app' },
+    { id: 'org.example.newapp', visibility: 'allowed', create: true, name: 'New app', details: 'Using app\u0085' },
+    { id: 'org.example.newapp', visibility: 'allowed', name: 'New app', details: 'Using app' }
+  ]) assert.throws(() => updateApp(root, input));
+  assert.equal(readFileSync(path, 'utf8'), before);
 }));
 test('app manager rejects symlinked and shared local configuration', () => fixture((root, path) => {
   chmodSync(path, 0o644); assert.throws(() => readControls(root)); chmodSync(path, 0o600);

@@ -27,6 +27,7 @@ import type { FeatureSettings } from "./suite-state.mjs";
 import { collectionsKey, featureSettings, featuresKey, notificationRulesKey } from "./suite-state.mjs";
 import type { PluginNative } from "@utils/types";
 import { SuitePanel } from "./SuitePanel";
+import { useChatBackground } from "./useChatBackground";
 
 type Native = PluginNative<typeof import("./native")> | undefined;
 type Tab = "music" | "shelf" | "workspaces" | "notifications" | "voice" | "appearance";
@@ -155,6 +156,7 @@ function navigate(channelId: string, message?: SavedMessage, onError: (message: 
 
 export function SuiteEntry({ native }: { native: Native }) {
     const [currentAccount, setCurrentAccount] = React.useState(() => UserStore.getCurrentUser()?.id ?? "");
+    const chatBackground = useChatBackground(currentAccount);
     const [shown, setShown] = React.useState(false);
     const [tab, setTab] = React.useState<Tab>("music");
     const [collections, setCollections] = React.useState<Collections | null>(null);
@@ -324,6 +326,10 @@ export function SuiteEntry({ native }: { native: Native }) {
     const jumpTo = (message: SavedMessage) => navigate(message.channelId, message, setError);
     return shown ? ReactDOM.createPortal(<SuitePanel
             accountId={currentAccount}
+            backgroundChannelId={chatBackground.channelId}
+            background={chatBackground.background}
+            backgroundError={chatBackground.error}
+            onBackgroundChange={chatBackground.save}
             native={native}
             tab={tab}
             setTab={setTab}

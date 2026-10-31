@@ -1,4 +1,4 @@
-import { foregroundProfile, publicProfile, validateConfig, nameApps, agentHosts, inQuietHours } from './profiles.mjs';
+import { blocked, foregroundProfile, publicProfile, validateConfig, nameApps, agentHosts, inQuietHours } from './profiles.mjs';
 import { safeName } from './names.mjs';
 import { agentActivity } from './agent.mjs';
 import { StatusWriter } from './ai.mjs';
@@ -28,6 +28,20 @@ const phrases = {
   'com.adobe.PremierePro': ['Cooking up a cut', 'Cutting to the good part', 'Frames in the oven', 'One more tiny tweak']
 };
 const pages = { media: 'Managing media', cut: 'Cutting video', edit: 'Editing video', fusion: 'Compositing', color: 'Color grading', fairlight: 'Mixing audio', deliver: 'Preparing delivery' };
+const validBundleId = value => typeof value === 'string' && value.length <= 200 && /^[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)+$/.test(value);
+function launchStart(snapshot, now, fallback = Math.floor(now / 1000)) {
+  const value = snapshot?.launchTimestamp;
+  return Number.isSafeInteger(value) && value > 0 && value <= Math.floor(now / 1000) ? value : fallback;
+}
+function processIsRunning(snapshot, session) {
+  const running = snapshot?.runningApps;
+  return !!running && typeof running === 'object' && !Array.isArray(running)
+    && Array.isArray(running[session.id]) && running[session.id].includes(session.pid);
+}
+
+export function publicActivity(activity, config) {
+  return activity && publicProfile(activity.appId, config) ? activity : null;
+}
 
 export class PresenceEngine {
   constructor(config = {}, provider = async () => null, agentDir, runner) {
@@ -64,56 +78,57 @@ export class PresenceEngine {
     const deadline = this.discordUntil ?? this.pending?.dueAt;
     return deadline == null ? null : Math.max(0, deadline - now);
   }
-  // A running coding-agent task (from the hook) replaces the label and timer in agent host apps.
+  // Task wording follows the hook; the public elapsed timer stays tied to app launch.
   async update(snapshot, now = Date.now()) {
     if (inQuietHours(this.config.quietHours, new Date(now))) { this.session = this.pending = this.activity = null; return null; }
     const activity = await this.baseUpdate(snapshot, now);
     const task = activity && agentHosts.has(activity.appId) ? agentActivity(this.config.agent, now, this.agentDir) : null;
     if (!task) return activity;
-    const { categories, ...shown } = task;
-    const minutes = Math.round((now / 1000 - shown.startTimestamp) / 60);
+    const { categories, startTimestamp: taskStart, ...shown } = task;
+    const minutes = Math.round((now / 1000 - taskStart) / 60);
     const details = this.writer.get(this.powerSaver ? { provider: 'off' } : this.config.agent.ai, { phrase: shown.details, app: activity.appName, minutes, categories: categories.slice(-6) }, now) ?? shown.details;
     return { ...activity, ...shown, details };
   }
   async baseUpdate(snapshot, now = Date.now()) {
     const c = this.config;
     const profile = foregroundProfile(snapshot, c);
-    if (!profile) {
-      const canWait = isDiscord(snapshot?.appId) && this.session && c.enabled && snapshot.inactive === false && Number.isFinite(snapshot.idleSeconds) && snapshot.idleSeconds < c.idleSeconds && publicProfile(this.session.id, c);
-      if (canWait) {
-        const running = snapshot.runningApps;
+    const clear = () => { this.discordUntil = null; this.session = null; this.pending = null; this.activity = null; return null; };
+    const usableSnapshot = c.enabled && snapshot && validBundleId(snapshot.appId)
+      && Number.isInteger(snapshot.pid) && snapshot.pid > 0 && Number.isFinite(snapshot.idleSeconds)
+      && snapshot.idleSeconds >= 0 && snapshot.idleSeconds < c.idleSeconds && snapshot.inactive === false;
+    if (!usableSnapshot || (blocked.has(snapshot.appId) && !isDiscord(snapshot.appId)) || c.denylist.includes(snapshot.appId)) return clear();
+    if (this.session && !publicProfile(this.session.id, c)) { this.session = null; this.activity = null; }
+
+    if (!profile && isDiscord(snapshot.appId)) {
+      if (this.session && publicProfile(this.session.id, c) && processIsRunning(snapshot, this.session)) {
+        this.discordUntil = null;
         this.pending = null;
-        if (running && typeof running === 'object' && !Array.isArray(running)) {
-          this.discordUntil = null;
-          if (Array.isArray(running[this.session.id]) && running[this.session.id].includes(this.session.pid)) return this.retained(c);
-        } else {
-          this.discordUntil ??= now + c.switchDelaySeconds * 1000;
-          if (now < this.discordUntil) return this.retained(c);
-        }
+        return this.retained(c);
       }
-      this.discordUntil = null;
-      this.session = null;
-      this.pending = null;
-      this.activity = null;
-      return null;
+      return clear();
     }
     this.discordUntil = null;
     const id = snapshot.appId;
-    const launch = snapshot.launchTimestamp;
-    const started = Number.isSafeInteger(launch) && launch > 0 && launch <= Math.floor(now / 1000) ? launch : Math.floor(now / 1000);
-    if (this.session && !publicProfile(this.session.id, c)) { this.session = null; this.activity = null; }
+    const started = launchStart(snapshot, now);
     if (this.session?.id === id && this.session?.pid === snapshot.pid) this.pending = null;
-    else if (!this.session && !this.pending) this.session = { id, pid: snapshot.pid, start: started };
+    else if (!this.session && !this.pending) {
+      if (!profile) return clear();
+      this.session = { id, pid: snapshot.pid, start: started };
+    }
     else {
       if (this.pending?.id !== id || this.pending?.pid !== snapshot.pid) this.pending = { id, pid: snapshot.pid, start: now, dueAt: now + c.switchDelaySeconds * 1000 };
       this.pending.dueAt = this.pending.start + c.switchDelaySeconds * 1000;
       if (now < this.pending.dueAt) {
-        if (!this.session) return null;
-        return this.retained(c);
+        if (this.session && publicProfile(this.session.id, c) && processIsRunning(snapshot, this.session)) return this.retained(c);
+        this.session = null;
+        this.activity = null;
+        return null;
       }
-      this.session = { id, pid: snapshot.pid, start: Number.isSafeInteger(snapshot.launchTimestamp) && snapshot.launchTimestamp > 0 && snapshot.launchTimestamp <= Math.floor(now / 1000) ? snapshot.launchTimestamp : Math.floor(this.pending.start / 1000) };
+      if (!profile) return clear();
+      this.session = { id, pid: snapshot.pid, start: launchStart(snapshot, now, Math.floor(this.pending.start / 1000)) };
       this.pending = null;
     }
+    if (!profile) return clear();
     const activity = { appId: id, appName: profile.name, details: this.details(id, snapshot.pid, this.session.start, profile, c), startTimestamp: this.session.start, privacyLevel: 'limited' };
     // Assets only appear after a local mapping confirms a Discord-hosted key.
     if (c.assets[id]) { activity.largeImage = c.assets[id]; activity.largeText = profile.name; }

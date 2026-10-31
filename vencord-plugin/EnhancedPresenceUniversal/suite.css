@@ -178,3 +178,11 @@
     .ep-plus-panel, .ep-plus-item, .ep-plus-player { border: 1px solid CanvasText; }
     .ep-plus-trigger:focus-visible, .ep-plus button:focus-visible { outline: 2px solid Highlight; }
 }
+
+.ep-plus-backgrounds { border-top: 1px solid var(--background-modifier-accent); margin-top: 18px; padding-top: 16px; }
+.ep-plus-background-presets { display: flex; flex-wrap: wrap; gap: 8px; }
+.ep-plus-background-presets button { display: inline-flex; align-items: center; gap: 6px; }
+.ep-plus-background-presets button[aria-pressed="true"] { outline: 2px solid var(--ep-messages-blue, #0070e8); }
+.ep-plus-background-presets button > span { width: 18px; height: 18px; border-radius: 50%; border: 1px solid rgb(0 0 0 / 15%); }
+.ep-plus-wallpaper-preview { display: grid; min-height: 88px; place-items: center; border-radius: 12px; background-color: var(--background-secondary); background-size: cover; background-position: center; }
+.ep-plus-wallpaper-preview > span { border-radius: 14px; padding: 6px 11px; color: white; background: #0070e8; font-size: 12px; }

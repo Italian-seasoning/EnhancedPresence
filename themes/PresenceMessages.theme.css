@@ -1,7 +1,7 @@
 /**
  * @name Messages for Discord
  * @author Italian-seasoning
- * @version 0.10.0-beta.1
+ * @version 0.10.0-beta.2
  * @description The macOS Messages look in Discord's layout. Select this theme on its own. Blue outgoing bubbles use Enhanced Presence+ or Vencord's ThemeAttributes plugin.
  * @source https://github.com/Italian-seasoning/EnhancedPresence
  * @license GPL-3.0-or-later
@@ -56,6 +56,13 @@
     --interactive-hover: var(--ep-messages-text);
     --interactive-active: var(--ep-messages-text);
     --text-link: #0066cc;
+    --brand-500: var(--ep-messages-blue);
+    --brand-560: #0067d6;
+    --brand-600: #005fca;
+    --control-brand-foreground: var(--ep-messages-blue);
+    --button-filled-brand-background: var(--ep-messages-blue);
+    --button-filled-brand-background-hover: #0067d6;
+    --ep-messages-wallpaper-veil: rgb(255 255 255 / 78%);
 }
 
 :root:is(.theme-dark, .theme-darker, .theme-midnight),
@@ -76,6 +83,7 @@
     --background-modifier-hover: rgb(255 255 255 / 7%);
     --background-modifier-selected: rgb(10 132 255 / 24%);
     --text-link: #69b4ff;
+    --ep-messages-wallpaper-veil: rgb(22 24 30 / 72%);
 }
 
 html:root { font-size: 87.5% !important; }
@@ -264,4 +272,143 @@ html:root { font-size: 87.5% !important; }
     }
 
     #app-mount [data-list-id="chat-messages"] [id^="message-content-"] a { color: LinkText; }
+}
+
+/* Native-looking conversation chrome, preserving Discord's columns and controls. */
+#app-mount [class*="privateChannels_"] [class*="channel_"] {
+    margin-block: 3px;
+}
+#app-mount [class*="privateChannels_"] :is([class*="interactive_"], [class*="interactiveSelected_"]) {
+    border-radius: 11px;
+    font-family: var(--font-primary);
+    font-size: 14px;
+}
+#app-mount [class*="privateChannels_"] :is([class*="selected_"], [class*="interactiveSelected_"]) {
+    background: var(--ep-messages-blue);
+    color: white;
+}
+#app-mount [class*="privateChannels_"] :is([class*="selected_"], [class*="interactiveSelected_"]) :is([class*="name_"], [class*="subText_"], [class*="activityText_"]) {
+    color: white;
+}
+#app-mount :is([class*="searchBarComponent_"], [class*="searchBar_"]) input {
+    font-family: var(--font-primary);
+    font-size: 13px;
+}
+#app-mount [class*="title_"][class*="container_"] {
+    background: var(--ep-messages-glass);
+    -webkit-backdrop-filter: blur(18px) saturate(140%);
+    backdrop-filter: blur(18px) saturate(140%);
+}
+#app-mount :is([class*="peopleColumn_"], [class*="nowPlayingColumn_"]) {
+    background: var(--ep-messages-chat);
+}
+#app-mount [class*="peopleListItem_"] {
+    border-radius: 12px;
+    border-color: var(--ep-messages-border);
+}
+#app-mount [class*="panels_"] {
+    border-radius: 14px;
+    border: 1px solid var(--ep-messages-border);
+    box-shadow: 0 3px 16px rgb(0 0 0 / 7%);
+}
+#app-mount [class*="channelTextArea_"] [class*="scrollableContainer_"] {
+    background: transparent;
+    border-radius: inherit;
+}
+#app-mount :is([class*="channelTextArea_"], [class*="searchBar_"]) :is(input, [role="textbox"]) {
+    font-family: var(--font-primary);
+    font-size: 14px;
+}
+#app-mount :is([class*="menu_"], [role="menu"]) {
+    border-radius: 13px;
+    padding: 5px;
+    background: var(--ep-messages-floating);
+    border-color: var(--ep-messages-border);
+    font-family: var(--font-primary);
+}
+#app-mount [role="menuitem"] {
+    border-radius: 7px;
+    font-size: 13px;
+}
+#app-mount [class*="standardSidebarView_"] {
+    border: 1px solid var(--ep-messages-border);
+    border-radius: 18px;
+    overflow: hidden;
+    box-shadow: 0 18px 60px rgb(0 0 0 / 18%);
+}
+#app-mount [class*="sidebarRegionScroller_"] [class*="item_"] {
+    border-radius: 9px;
+    font-family: var(--font-primary);
+    font-size: 13px;
+}
+#app-mount [class*="contentRegionScroller_"] :is(input, textarea, select) {
+    border-radius: 9px;
+    border-color: var(--ep-messages-border);
+    font-family: var(--font-primary);
+}
+#app-mount [class*="contentRegionScroller_"] button {
+    border-radius: 9px;
+    font-family: var(--font-primary);
+}
+
+/* Replies remain clickable Discord references; reactions retain their existing actions. */
+#app-mount [data-list-id="chat-messages"] [class*="repliedMessage_"] {
+    max-width: min(80%, 560px);
+    padding: 6px 10px;
+    margin-block: 4px;
+    border-left: 3px solid var(--ep-messages-blue);
+    border-radius: 9px;
+    background: var(--ep-messages-glass);
+    color: var(--ep-messages-muted);
+    font: 12px/1.4 var(--font-primary);
+}
+#app-mount [data-list-id="chat-messages"] [class*="repliedMessage_"]::before { display: none; }
+#app-mount [data-list-id="chat-messages"] [class*="reaction_"] {
+    min-height: 26px;
+    border: 1px solid var(--ep-messages-border);
+    border-radius: 16px;
+    background: var(--ep-messages-incoming);
+    box-shadow: 0 2px 6px rgb(0 0 0 / 5%);
+}
+#app-mount [data-list-id="chat-messages"] [class*="reactionMe_"] {
+    border-color: var(--ep-messages-blue);
+    background: color-mix(in srgb, var(--ep-messages-blue) 20%, var(--ep-messages-incoming));
+}
+#app-mount [data-list-id="chat-messages"] [class*="reactionCount_"] {
+    font: 600 11px var(--font-primary);
+    color: var(--ep-messages-text);
+}
+#app-mount [class*="replyBar_"] {
+    border: 1px solid var(--ep-messages-border);
+    border-bottom: 0;
+    border-radius: 14px 14px 0 0;
+    background: var(--ep-messages-glass);
+}
+#app-mount :is([class*="assetsSmallImage_"], [class*="smallImage_"]) {
+    border-width: 2px;
+    outline-width: 2px;
+}
+
+/* This namespace is inert when the standalone theme is disabled. */
+:root[data-ep-dm-wallpaper] #app-mount [class*="chatContent_"] { position: relative; isolation: isolate; }
+:root[data-ep-dm-wallpaper] #app-mount [class*="chatContent_"]::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background-image: linear-gradient(var(--ep-messages-wallpaper-veil), var(--ep-messages-wallpaper-veil)), var(--ep-dm-wallpaper);
+    background-size: cover;
+    background-position: center;
+}
+:root[data-ep-dm-wallpaper] #app-mount [class*="chatContent_"] [class*="scroller_"] { background: transparent; }
+
+
+@media (prefers-reduced-transparency: reduce) {
+    #app-mount [class*="title_"][class*="container_"] { background: var(--ep-messages-sidebar); -webkit-backdrop-filter: none; backdrop-filter: none; }
+    :root[data-ep-dm-wallpaper] #app-mount [class*="chatContent_"]::before { display: none; }
+}
+@media (forced-colors: active) {
+    :root[data-ep-dm-wallpaper] #app-mount [class*="chatContent_"]::before { display: none; }
+    #app-mount [data-list-id="chat-messages"] :is([class*="reaction_"], [class*="repliedMessage_"]) { color: CanvasText; background: Canvas; border-color: CanvasText; }
 }

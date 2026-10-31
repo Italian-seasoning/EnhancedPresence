@@ -37,6 +37,9 @@ export function AppManager({ native, getStatus, setPaused, setAppIcons, enableSh
     const [query, setQuery] = useState("");
     const [filter, setFilter] = useState("all");
     const [selected, setSelected] = useState("com.blackmagic-design.DaVinciResolve");
+    const [newApp, setNewApp] = useState<{ id: string; name: string } | null>(null);
+    const [newName, setNewName] = useState("");
+    const [newDetails, setNewDetails] = useState("");
     const [name, setName] = useState("");
     const [details, setDetails] = useState("");
     const [busy, setBusy] = useState(false);
@@ -70,6 +73,38 @@ export function AppManager({ native, getStatus, setPaused, setAppIcons, enableSh
             setData(await native.saveAppControl({ id: app.id, visibility, reset, ...(text ? { name: name.trim(), details: details.trim() } : {}) }));
             setNotice(text ? "Public text saved." : reset ? "Default text restored." : "App visibility saved.");
         } catch { setError("Couldn’t save. Use 2–128 characters for each public text field and try again."); }
+        finally { setBusy(false); }
+    }
+    async function chooseApplication() {
+        if (!native?.chooseApplication || busy) return;
+        setBusy(true); setError(""); setNotice("");
+        try {
+            const choice = await native.chooseApplication();
+            if (!choice) return;
+            if (!/^[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)+$/.test(choice.id) || choice.id.length > 200
+                || choice.name.length < 2 || choice.name.length > 128 || /[\x00-\x1f\x7f-\x9f]/.test(choice.name)) throw Error();
+            const existing = data?.apps.find(item => item.id === choice.id);
+            if (existing) {
+                setNewApp(null); setSelected(existing.id);
+                setNotice("This app is already listed. Its current visibility was preserved.");
+                return;
+            }
+            setNewApp(choice); setSelected(choice.id); setNewName(choice.name); setNewDetails(`Using ${choice.name}`.slice(0, 128));
+        } catch { setError("Couldn’t read this application’s name and identifier. Nothing was changed."); }
+        finally { setBusy(false); }
+    }
+    async function addApplication() {
+        if (!native || !newApp || busy) return;
+        const publicName = newName.trim(), activity = newDetails.trim();
+        if (publicName.length < 2 || publicName.length > 128 || activity.length < 2 || activity.length > 128
+            || /[\x00-\x1f\x7f-\x9f]/.test(publicName + activity)) {
+            setError("Use 2–128 characters for each public field, without control characters."); return;
+        }
+        setBusy(true); setError(""); setNotice("");
+        try {
+            const next = await native.saveAppControl({ id: newApp.id, visibility: "allowed", create: true, name: publicName, details: activity });
+            setData(next); setSelected(newApp.id); setNewApp(null); setNotice(`${publicName} added and allowed.`);
+        } catch { setError("Couldn’t add this app. It may already exist or be blocked for privacy; existing visibility was left unchanged."); }
         finally { setBusy(false); }
     }
     async function saveDisclosure(key: "showName" | "showContext", value: boolean) {
@@ -123,10 +158,11 @@ export function AppManager({ native, getStatus, setPaused, setAppIcons, enableSh
                 <p className="ep-hint">{runtime?.stale ? "Apple Music status is out of date. Check that the companion is running." : runtime?.music.available ? "Apple Music provider ready." : runtime?.music.error || "Waiting for Apple Music…"}</p>
             </>}
         </div>}
-        <div className="ep-heading"><h3>Your apps</h3><span>{data?.apps.filter(item => item.visibility === "allowed").length ?? "–"} allowed</span></div>
+        <div className="ep-heading"><h3>Your apps</h3><button className="ep-button ep-primary" disabled={busy || !native?.chooseApplication || !data} onClick={() => void chooseApplication()}>Add application…</button><span>{data?.apps.filter(item => item.visibility === "allowed").length ?? "–"} allowed</span></div>
         <input className="ep-input" type="search" aria-label="Search apps" placeholder="Search apps…" value={query} onChange={event => setQuery(event.target.value)} />
         <div className="ep-filters" aria-label="Filter apps">{[["all", "All"], ["allowed", "Allowed"], ["blocked", "Blocked"], ["hidden", "Hidden"]].map(([value, label]) => <button key={value} aria-pressed={filter === value} onClick={() => setFilter(value)}>{label}</button>)}</div>
-        <div className="ep-apps" aria-label="Apps">{visible.map(item => <button key={item.id} disabled={busy} aria-pressed={selected === item.id} onClick={() => { setSelected(item.id); setNotice(""); setError(""); }}><span className="ep-app-name"><AppIcon id={item.id} name={item.name} applicationId={status.applicationId} native={native} />{item.name}</span><span className={`ep-badge ep-${item.visibility}`}>{item.visibility === "allowed" ? "Allowed" : item.visibility === "blocked" ? "Blocked" : "Hidden"}</span></button>)}{!visible.length && <p className="ep-empty">{data ? "No apps match. Try another search or filter." : "Loading app settings…"}</p>}</div>
+        {newApp && <div className="ep-editor" aria-label="Confirm new application"><h3>Add {newApp.name}</h3><p className="ep-hint">Only the app name and activity text below can appear on Discord. Nothing is added until you confirm.</p><p className="ep-hint">Bundle identifier: <code>{newApp.id}</code></p><label className="ep-label">Public app name<input className="ep-input" maxLength={128} value={newName} onChange={event => setNewName(event.target.value)} /></label><label className="ep-label">Activity text<input className="ep-input" maxLength={128} value={newDetails} onChange={event => setNewDetails(event.target.value)} /></label><div className="ep-actions"><button className="ep-button ep-primary" disabled={busy || newName.trim().length < 2 || newDetails.trim().length < 2} onClick={() => void addApplication()}>Add and Allow</button><button className="ep-button" disabled={busy} onClick={() => setNewApp(null)}>Cancel</button></div></div>}
+        <div className="ep-apps" aria-label="Apps">{visible.map(item => <button key={item.id} disabled={busy} aria-pressed={selected === item.id} onClick={() => { setSelected(item.id); setNewApp(null); setNotice(""); setError(""); }}><span className="ep-app-name"><AppIcon id={item.id} name={item.name} applicationId={status.applicationId} native={native} />{item.name}</span><span className={`ep-badge ep-${item.visibility}`}>{item.visibility === "allowed" ? "Allowed" : item.visibility === "blocked" ? "Blocked" : "Hidden"}</span></button>)}{!visible.length && <p className="ep-empty">{data ? "No apps match. Try another search or filter." : "Loading app settings…"}</p>}</div>
         {app && <div className="ep-editor">
             <h3>{app.name}</h3>
             {app.visibility === "allowed" && <dl className="ep-usage" aria-label={`${app.name} app time`}>{[["Session", (runtime?.usage || data?.usage)?.[app.id]?.sessionSeconds || 0], ["Today", (runtime?.usage || data?.usage)?.[app.id]?.todaySeconds || 0], ["All time", (runtime?.usage || data?.usage)?.[app.id]?.totalSeconds || 0]].map(([label, seconds]) => <div key={label}><dt>{label}</dt><dd>{timeLabel(Number(seconds))}</dd></div>)}</dl>}

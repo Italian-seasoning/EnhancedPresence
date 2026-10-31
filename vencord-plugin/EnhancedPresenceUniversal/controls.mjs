@@ -27,6 +27,7 @@ function readPrivate(root, name, limit = 262144) {
   return JSON.parse(readFileSync(file, 'utf8'));
 }
 const validText = value => typeof value === 'string' && value.length > 0 && value.length <= 128 && !/[\x00-\x1f]/.test(value);
+const validPublicText = value => typeof value === 'string' && value.length >= 2 && value.length <= 128 && !/[\x00-\x1f\x7f-\x9f]/.test(value);
 const validSeconds = value => Number.isFinite(value) && value >= 0 && value <= Number.MAX_SAFE_INTEGER;
 export function readRuntimeStatus(root, now = Date.now()) {
   const c = load(root);
@@ -122,16 +123,24 @@ export function updateApp(root, input) {
   const c = load(root);
   if (!input || typeof input.id !== 'string' || !/^[\w.-]{1,200}$/.test(input.id) || !['allowed', 'hidden', 'blocked'].includes(input.visibility)) throw Error('Invalid app setting');
   const { id, visibility } = input;
+  if (input.create !== undefined) {
+    if (input.create !== true || visibility !== 'allowed' || !/^[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)+$/.test(id) || Object.keys(input).some(key => !['id', 'visibility', 'create', 'name', 'details'].includes(key))
+      || !validPublicText(input.name) || !validPublicText(input.details) || blocked.has(id) || c.denylist.includes(id)
+      || c.allowlist.includes(id) || Object.hasOwn(profiles, id) || Object.hasOwn(c.profiles, id)) throw Error('Application cannot be added');
+    c.profiles[id] = { name: input.name, details: input.details };
+  }
   if (input.showName !== undefined || input.showContext !== undefined) {
     if (!nameApps.has(id) || (input.showName !== undefined && typeof input.showName !== 'boolean') || (input.showContext !== undefined && (typeof input.showContext !== 'boolean' || (input.showContext && id !== 'com.blackmagic-design.DaVinciResolve')))) throw Error('Invalid name or workspace setting');
     c.disclosure[id] = { showName: false, showContext: false, ...c.disclosure[id], ...(input.showName !== undefined ? { showName: input.showName } : {}), ...(input.showContext !== undefined ? { showContext: input.showContext } : {}) };
   }
   if (blocked.has(id) && visibility !== 'blocked') throw Error('This app always stays private');
-  if (visibility === 'allowed' && !Object.hasOwn(profiles, id) && !Object.hasOwn(c.profiles, id)) throw Error('App has no public profile');
-  if (input.reset === true && Object.hasOwn(profiles, id)) delete c.profiles[id];
-  else if (input.name !== undefined || input.details !== undefined) {
-    if (blocked.has(id) || (!Object.hasOwn(profiles, id) && !Object.hasOwn(c.profiles, id))) throw Error('App is not editable');
-    c.profiles[id] = { name: input.name, details: input.details };
+  if (input.create === undefined) {
+    if (visibility === 'allowed' && !Object.hasOwn(profiles, id) && !Object.hasOwn(c.profiles, id)) throw Error('App has no public profile');
+    if (input.reset === true && Object.hasOwn(profiles, id)) delete c.profiles[id];
+    else if (input.name !== undefined || input.details !== undefined) {
+      if (blocked.has(id) || (!Object.hasOwn(profiles, id) && !Object.hasOwn(c.profiles, id))) throw Error('App is not editable');
+      c.profiles[id] = { name: input.name, details: input.details };
+    }
   }
   c.allowlist = c.allowlist.filter(x => x !== id);
   c.denylist = c.denylist.filter(x => x !== id);

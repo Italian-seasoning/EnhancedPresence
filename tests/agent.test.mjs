@@ -47,14 +47,25 @@ test('task timer, opt-in project, staleness and stop', () => {
   assert.equal(agentActivity({}, Date.now(), dir), null);
 });
 
-test('engine uses task timer only in agent host apps', async () => {
-  const dir = fresh(), t0 = Math.floor(Date.now() / 1000) - 60;
+test('engine uses task wording only in agent host apps and preserves app launch time', async () => {
+  const dir = fresh(), t0 = Math.floor(Date.now() / 1000) - 60, appStart = t0 - 600;
   writeFileSync(join(dir, 'agent-task'), `${t0} demo\n`); writeFileSync(join(dir, 'agent-events.log'), `${t0} test 0\n`);
-  const snap = appId => ({ appId, pid: 1, idleSeconds: 0, inactive: false });
+  const snap = appId => ({ appId, pid: 1, launchTimestamp: appStart, idleSeconds: 0, inactive: false });
   const term = await new PresenceEngine({}, undefined, dir).update(snap('com.apple.Terminal'));
-  assert.equal(term.details, 'Running tests'); assert.equal(term.startTimestamp, t0);
+  assert.equal(term.details, 'Running tests'); assert.equal(term.startTimestamp, appStart);
   const other = await new PresenceEngine({}, undefined, dir).update(snap('com.apple.Safari'));
   assert.equal(other.details, 'Browsing the web');
+});
+
+test('agent task age is used for AI wording while Discord timer stays at validated app launch', async () => {
+  const dir = fresh(), taskStart = Math.floor(Date.now() / 1000) - 180, appStart = taskStart - 1200;
+  writeFileSync(join(dir, 'agent-task'), `${taskStart} demo\n`); writeFileSync(join(dir, 'agent-events.log'), `${taskStart} test 0\n`);
+  const prompts = [];
+  const engine = new PresenceEngine({ agent: { ai: { provider: 'haiku', intervalMinutes: 15 } } }, undefined, dir,
+    async (_bin, args) => { prompts.push(args.at(-1)); return ''; });
+  const activity = await engine.update({ appId: 'com.openai.codex', pid: 9, launchTimestamp: appStart, idleSeconds: 0, inactive: false }, taskStart * 1000 + 60000);
+  assert.equal(activity.startTimestamp, appStart);
+  assert.match(prompts[0], /Task running: 1 min/);
 });
 
 import { command, clean, buildPrompt } from '../presence-engine/ai.mjs';

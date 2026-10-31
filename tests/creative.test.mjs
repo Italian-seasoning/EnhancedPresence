@@ -18,6 +18,7 @@ test("After Effects and Paper have artwork", () => {
 
 test("all curated apps have public artwork", async () => {
   const { profiles } = await import("../vencord-plugin/EnhancedPresenceUniversal/profiles.mjs");
+  assert.ok(appIcon("com.apple.Notes"));
   const missing = Object.keys(profiles).filter(id => !appIcon(id));
   assert.deepEqual(missing, []);
 });
@@ -33,18 +34,18 @@ test("Photoshop presence excludes zoom and layer details", async () => {
 test("creative activity stays visible during brief app changes", async () => {
   const f = "com.apple.FinalCut", codex = "com.openai.codex", discord = "com.hnc.Discord";
   const e = new PresenceEngine({ switchDelaySeconds: 60 });
-  const snap = appId => ({ appId, pid: appId === f ? 1 : 2, idleSeconds: 0, inactive: false });
-  await e.update(snap(f), 100000);
+  const snap = (appId, runningApps = { [f]: [1], [codex]: [2] }) => ({ appId, pid: appId === f ? 1 : 2, idleSeconds: 0, inactive: false, runningApps });
+  await e.update(snap(f, { [f]: [1] }), 100000);
   assert.equal((await e.update(snap(codex), 101000)).appId, f);
   assert.equal((await e.update(snap(discord), 102000)).appId, f);
-  assert.equal(await e.update(snap(discord), 163000), null);
+  assert.equal(await e.update(snap(discord, {}), 163000), null);
   assert.equal(await e.update({...snap(discord), inactive:true}, 165000), null);
 });
 
 test("private apps clear immediately and withdrawing consent clears a retained name", async () => {
   const f = "com.apple.FinalCut", discord = "com.hnc.Discord";
   const e = new PresenceEngine({disclosure:{[f]:{showName:true,showContext:false}}});
-  const snap = appId => ({appId,pid:1,idleSeconds:0,inactive:false,documentName:"Example"});
+  const snap = appId => ({appId,pid:1,idleSeconds:0,inactive:false,documentName:"Example",runningApps:{[f]:[1]}});
   assert.match((await e.update(snap(f),100000)).details,/Example/);
   e.config.disclosure[f].showName = false;
   assert.doesNotMatch((await e.update(snap(discord),101000)).details,/Example/);
@@ -116,9 +117,9 @@ test("Discord keeps an allowed running app until it closes or the Mac becomes in
 test("two minutes is the default delay for switching eligible apps", async () => {
   const e=new PresenceEngine();
   assert.equal(e.config.switchDelaySeconds,120);
-  const snap=(appId,pid)=>({appId,pid,idleSeconds:0,inactive:false});
   const codex="com.openai.codex", f="com.apple.FinalCut";
-  await e.update(snap(codex,1),100000);
+  const snap=(appId,pid)=>({appId,pid,idleSeconds:0,inactive:false,runningApps:{[codex]:[1],[f]:[2]}});
+  await e.update({...snap(codex,1),runningApps:{[codex]:[1]}},100000);
   assert.equal((await e.update(snap(f,2),101000)).appId,codex);
   assert.equal((await e.update(snap(f,2),220999)).appId,codex);
   assert.equal((await e.update(snap(f,2),221000)).appId,f);
