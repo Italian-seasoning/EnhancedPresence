@@ -18,10 +18,10 @@ const text = value => typeof value === 'string'
 const finite = value => typeof value === 'number' && Number.isFinite(value);
 const maxSeconds = 7 * 24 * 60 * 60;
 
-export function createMusicGapSuppressor({ graceMs = 2000, now = Date.now } = {}) {
+export function createMusicGapSuppressor({ now = Date.now } = {}) {
   let expiresAt = 0;
   return {
-    begin() { expiresAt = now() + graceMs; },
+    begin(durationMs) { expiresAt = finite(durationMs) && durationMs > 0 ? now() + durationMs : 0; },
     clear() { expiresAt = 0; },
     shouldSuppress({ activity, activityAllowed, config, snapshot, quietHours = false } = {}) {
       if (expiresAt <= now()) { expiresAt = 0; return false; }

@@ -10,6 +10,7 @@ import type { IconComponent } from "@utils/types";
 import { ChannelRTCStore, ChannelStore, FluxDispatcher, PresenceStore, React, SelectedChannelStore, UserStore, VoiceStateStore } from "@webpack/common";
 import type { Message } from "@vencord/discord-types";
 import { AppManager } from "./AppManager";
+import { ComposerMenu } from "./ComposerMenu";
 import { resolveArtwork } from "./artwork";
 import { createClient } from "./client.mjs";
 import type { MusicArtworkRequest } from "./music-artwork.mjs";
@@ -185,10 +186,11 @@ const PlusIcon: IconComponent = ({ width = 20, height = 20, className }) => Reac
     { width, height, className, viewBox: "0 0 24 24", "aria-hidden": true },
     React.createElement("path", { fill: "currentColor", d: "M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm1 5v4h4v2h-4v4h-2v-4H7v-2h4V7h2Z" })
 );
-function PlusChatButton({ isMainChat }: { isMainChat: boolean }) {
+function PlusChatButton({ isMainChat, channel }: { isMainChat: boolean; channel: { id: string } }) {
     if (!isMainChat) return null;
     return React.createElement(React.Fragment, null,
         React.createElement(SuiteEntry, { native: Native }),
+        React.createElement(ComposerMenu, { channelId: channel.id }),
         React.createElement(ChatBarButton, { tooltip: "Open Enhanced Presence+", onClick: () => openPlus("music"), children: React.createElement(PlusIcon, {}) })
     );
 }

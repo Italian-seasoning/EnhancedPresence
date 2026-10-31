@@ -186,3 +186,4 @@
 .ep-plus-background-presets button > span { width: 18px; height: 18px; border-radius: 50%; border: 1px solid rgb(0 0 0 / 15%); }
 .ep-plus-wallpaper-preview { display: grid; min-height: 88px; place-items: center; border-radius: 12px; background-color: var(--background-secondary); background-size: cover; background-position: center; }
 .ep-plus-wallpaper-preview > span { border-radius: 14px; padding: 6px 11px; color: white; background: #0070e8; font-size: 12px; }
+.vc-chatbar-button:has([data-ep-composer-toggle]) { display: none; }

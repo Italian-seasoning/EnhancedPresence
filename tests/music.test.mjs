@@ -200,12 +200,32 @@ test('music-gap suppression clears the old track and briefly hides only the app 
   const config = { enabled: true, idleSeconds: 300, allowlist: ['com.apple.dt.Xcode', 'com.apple.Music'], denylist: [], music: { enabled: true, sources: ['com.apple.Music'], priority: 'music' } };
   const snapshot = { appId: 'com.apple.dt.Xcode', pid: 8, idleSeconds: 2, inactive: false };
   const codex = { appId: 'com.openai.codex', appName: 'Codex', details: 'Working', startTimestamp: 1 };
-  gap.begin();
+  gap.begin(2000);
   assert.equal(gap.shouldSuppress({ activity: codex, activityAllowed: true, config, snapshot }), true);
   now += 1999;
   assert.equal(gap.shouldSuppress({ activity: codex, activityAllowed: true, config, snapshot }), true);
   now += 1;
   assert.equal(gap.shouldSuppress({ activity: codex, activityAllowed: true, config, snapshot }), false);
+});
+
+test('music-gap suppression uses the configured positive switch delay and rejects invalid durations', () => {
+  let clock = 1000;
+  const gap = createMusicGapSuppressor({ now: () => clock });
+  const config = { enabled: true, idleSeconds: 300, allowlist: ['com.apple.dt.Xcode', 'com.apple.Music'], denylist: [], music: { enabled: true, sources: ['com.apple.Music'], priority: 'music' } };
+  const snapshot = { appId: 'com.apple.dt.Xcode', pid: 8, idleSeconds: 2, inactive: false };
+  const codex = { appId: 'com.openai.codex', appName: 'Codex', details: 'Working', startTimestamp: 1 };
+  const check = () => gap.shouldSuppress({ activity: codex, activityAllowed: true, config, snapshot });
+
+  gap.begin(120_000);
+  clock += 2100;
+  assert.equal(check(), true);
+  clock += 117_900;
+  assert.equal(check(), false);
+
+  for (const invalidDuration of [0, -1, NaN, Infinity, undefined]) {
+    gap.begin(invalidDuration);
+    assert.equal(check(), false);
+  }
 });
 
 test('music-gap suppression is bypassed and canceled for privacy or app-priority changes', () => {
@@ -225,7 +245,7 @@ test('music-gap suppression is bypassed and canceled for privacy or app-priority
     { config: { ...config, music: { ...config.music, priority: 'app' } } },
     { activityAllowed: false }
   ]) {
-    gap.begin();
+    gap.begin(2000);
     assert.equal(gap.shouldSuppress({ activity: codex, activityAllowed: true, config, snapshot, ...state }), false);
   }
 });
@@ -235,7 +255,7 @@ test('the music gap also suppresses a retained app while viewing Discord', () =>
   const config = { enabled: true, idleSeconds: 300, allowlist: ['com.openai.codex', 'com.apple.Music'], denylist: [], music: { enabled: true, sources: ['com.apple.Music'], priority: 'music' } };
   const activity = { appId: 'com.openai.codex' };
   for (const appId of ['com.hnc.Discord', 'dev.vencord.Vesktop']) {
-    gap.begin();
+    gap.begin(2000);
     assert.equal(gap.shouldSuppress({ activity, activityAllowed: true, config, snapshot: { appId, pid: 8, inactive: false, idleSeconds: 2 } }), true);
   }
 });

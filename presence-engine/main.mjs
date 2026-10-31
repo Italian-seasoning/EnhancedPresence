@@ -50,12 +50,14 @@ function clearMusicGap() {
 function beginMusicGap() {
   if (currentActivity?.kind !== 'music' || !engine.config.enabled || !engine.config.music.enabled || engine.config.music.priority !== 'music') return;
   if (musicGapTimer) return;
-  musicGapSuppressor.begin();
+  const delayMs = engine.config.switchDelaySeconds * 1000;
+  if (!Number.isFinite(delayMs) || delayMs <= 0) { clearMusicGap(); return; }
+  musicGapSuppressor.begin(delayMs);
   musicGapTimer = setTimeout(() => {
     musicGapTimer = undefined;
     musicGapSuppressor.clear();
     void receive(currentSnapshot(), false);
-  }, 2000);
+  }, delayMs);
   musicGapTimer.unref?.();
 }
 const music = createMusicProvider({
@@ -154,6 +156,7 @@ async function sample() {
 }
 const sampler = setInterval(() => void sample(), 60000);
 function reloadConfig() {
+  const previousDelay = engine.config.switchDelaySeconds;
   try {
     if (configPath) {
       const stat = lstatSync(configPath);
@@ -161,6 +164,7 @@ function reloadConfig() {
     }
     engine.config = validateConfig(configPath ? JSON.parse(readFileSync(configPath, 'utf8')) : {});
   } catch { engine.config = validateConfig({ enabled: false }); }
+  if (previousDelay !== engine.config.switchDelaySeconds) clearMusicGap();
   localMusicEnabled = Boolean(root && readLocalPlayerEnabled(root));
   if (!localMusicEnabled) { try { clearLocalPlayback(root); } catch { /* A malformed private file is left untouched. */ } }
   applyMusic();

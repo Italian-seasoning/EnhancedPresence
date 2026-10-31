@@ -27,6 +27,7 @@ export function useChatBackground(accountId: string) {
     const background = state?.accountId === accountId && channelId ? state.chats[channelId] : undefined;
     React.useLayoutEffect(() => {
         const root = document.documentElement;
+        root.toggleAttribute("data-ep-direct-message", Boolean(channelId && ChannelStore.getChannel(channelId)?.type === 1 && UserStore.getCurrentUser()?.id === accountId));
         const css = backgroundCss(background);
         if (css && UserStore.getCurrentUser()?.id === accountId) {
             root.style.setProperty("--ep-dm-wallpaper", css);
@@ -35,7 +36,7 @@ export function useChatBackground(accountId: string) {
             root.style.removeProperty("--ep-dm-wallpaper");
             root.removeAttribute("data-ep-dm-wallpaper");
         }
-        return () => { root.style.removeProperty("--ep-dm-wallpaper"); root.removeAttribute("data-ep-dm-wallpaper"); };
+        return () => { root.style.removeProperty("--ep-dm-wallpaper"); root.removeAttribute("data-ep-dm-wallpaper"); root.removeAttribute("data-ep-direct-message"); };
     }, [accountId, channelId, background]);
     const save = async (next: ChatBackground | null) => {
         if (!state || state.accountId !== accountId || !channelId || UserStore.getCurrentUser()?.id !== accountId
