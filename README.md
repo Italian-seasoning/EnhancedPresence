@@ -56,11 +56,19 @@ Apps can be added from the helper or Vencord settings using **Choose Application
 
 For native macOS glass, set **Vencord → MacOS Window vibrancy style → Sidebar**, then fully quit and reopen Discord. The separate **Enable window transparency** switch is unnecessary for macOS vibrancy and can prevent window resizing. Reduce Transparency uses solid surfaces instead.
 
-Open **Presence+ → Appearance** in a DM to choose a background for that chat. Presets and normalized local photos stay in this Mac’s account-scoped storage and are separate from public presence. They apply only with the Messages theme enabled.
+Open **Presence+ → Appearance** in a DM to choose a background for that chat. Presets and normalized local photos stay in this Mac’s account-scoped storage and are separate from public presence. They apply only with the Messages or Snapchat theme enabled.
 
 Blue outgoing bubbles use Plus's hidden self-message marker or Vencord's built-in **ThemeAttributes** plugin. The theme can be used without the companion by enabling ThemeAttributes. Installation never changes your theme selection.
 
 With Plus, the composer's **+** menu groups the existing Discord and plugin actions. Turning off Messages restores the original buttons.
+
+### Optional Snapchat theme
+
+**Snapchat for Discord** is a separate theme with a Snapchat-inspired chat look in Discord's existing layout. It uses uppercase sender labels with blue rails for others and red rails for your own messages, Snap Yellow for the selected chat, primary buttons and your reactions, and rounded fields and menus. It supports light/dark colors, Increase Contrast, Reduce Transparency and forced colors, and loads no remote CSS, fonts or images. In one-to-one DMs it shows names instead of repeated avatars.
+
+Install it the same way as Messages: copy **PresenceSnapchat.theme.css** from the DMG or a [release](https://github.com/Italian-seasoning/EnhancedPresence/releases) into the Themes folder, turn off other full-client themes, then enable **Snapchat for Discord**. Per-DM backgrounds and the composer **+** menu work the same way. Red own-message rails use the same self-message marker or **ThemeAttributes**.
+
+The theme is an interpretation, not a copy of Snapchat: it only shows states Discord provides and has no opened, screenshot, replay or disappearing-message indicators.
 
 - Allowed app names, artwork and elapsed time.
 - Compact native menu with connection, current activity, Pause and Settings.
