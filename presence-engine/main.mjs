@@ -3,14 +3,14 @@ import { dirname, join, basename } from 'node:path';
 import { spawn } from 'node:child_process';
 import { createInterface } from 'node:readline';
 import { fileURLToPath } from 'node:url';
-import { PresenceEngine, isDiscord } from './engine.mjs';
-import { validateConfig, foregroundProfile, profiles, inQuietHours } from './profiles.mjs';
+import { PresenceEngine, publicActivity } from './engine.mjs';
+import { validateConfig, profiles, inQuietHours } from './profiles.mjs';
 import { resolveProvider } from './resolve.mjs';
 import { message } from '../shared/protocol.mjs';
 import { DiscordRPC } from './rpc.mjs';
 import { PresenceBridge } from './websocket.mjs';
 import { UsageTracker } from './usage.mjs';
-import { createMusicProvider, selectMusicActivity } from './music.mjs';
+import { createMusicGapSuppressor, createMusicProvider, selectMusicActivity } from './music.mjs';
 import { clearLocalPlayback, readLocalPlayerEnabled, writeLocalPlayback } from './local-music.mjs';
 import { OutputController } from './output.mjs';
 import { readPower, saverActive, musicSuspended } from './power.mjs';
@@ -40,8 +40,32 @@ let last = undefined, lastInput = Date.now(), busy = false, queued = undefined, 
 let latest, child, source, deadline, configWatcher, reloadTimer, musicReloadTimer, statusKey, lastStatus = 0, currentActivity = null;
 let musicStatus = { available: false };
 let localMusicEnabled = false;
+const musicGapSuppressor = createMusicGapSuppressor();
+let musicGapTimer;
+function clearMusicGap() {
+  musicGapSuppressor.clear();
+  clearTimeout(musicGapTimer);
+  musicGapTimer = undefined;
+}
+function beginMusicGap() {
+  if (currentActivity?.kind !== 'music' || !engine.config.enabled || !engine.config.music.enabled || engine.config.music.priority !== 'music') return;
+  if (musicGapTimer) return;
+  const delayMs = engine.config.switchDelaySeconds * 1000;
+  if (!Number.isFinite(delayMs) || delayMs <= 0) { clearMusicGap(); return; }
+  musicGapSuppressor.begin(delayMs);
+  musicGapTimer = setTimeout(() => {
+    musicGapTimer = undefined;
+    musicGapSuppressor.clear();
+    void receive(currentSnapshot(), false);
+  }, delayMs);
+  musicGapTimer.unref?.();
+}
 const music = createMusicProvider({
-  onChange: () => { if (latest) void receive(currentSnapshot(), false); },
+  onChange: value => {
+    if (value) clearMusicGap();
+    else beginMusicGap();
+    if (latest) void receive(currentSnapshot(), false);
+  },
   onPlayback: playback => {
     if (!root) return;
     try { if (localMusicEnabled && playback) writeLocalPlayback(root, playback); else clearLocalPlayback(root); }
@@ -49,6 +73,7 @@ const music = createMusicProvider({
   },
   onStatus: status => {
     musicStatus = { available: !['error', 'stopped'].includes(status.state), ...(status.reason ? { error: status.reason } : {}) };
+    if (['error', 'stopped'].includes(status.state)) clearMusicGap();
     if (latest) void receive(currentSnapshot(), false);
   }
 });
@@ -57,9 +82,12 @@ function currentSnapshot() {
   return { ...latest, idleSeconds: latest.idleSeconds + (Date.now() - lastInput) / 1000 };
 }
 function selectedActivity(activity, snapshot) {
-  const appEligible = foregroundProfile(snapshot, engine.config) || (isDiscord(snapshot?.appId) && activity);
-  return selectMusicActivity(appEligible ? activity : null, music.current, engine.config, snapshot?.appId,
-    snapshot, inQuietHours(engine.config.quietHours, new Date()));
+  const allowedActivity = publicActivity(activity, engine.config);
+  const quietHours = inQuietHours(engine.config.quietHours, new Date());
+  if (musicGapSuppressor.shouldSuppress({ activity: allowedActivity, activityAllowed: !!allowedActivity,
+    config: engine.config, snapshot, quietHours })) return null;
+  if (musicGapTimer) clearMusicGap();
+  return selectMusicActivity(allowedActivity, music.current, engine.config, snapshot?.appId, snapshot, quietHours);
 }
 function track(action, ...values) {
   try { return usage?.[action](...values); }
@@ -128,6 +156,7 @@ async function sample() {
 }
 const sampler = setInterval(() => void sample(), 60000);
 function reloadConfig() {
+  const previousDelay = engine.config.switchDelaySeconds;
   try {
     if (configPath) {
       const stat = lstatSync(configPath);
@@ -135,6 +164,7 @@ function reloadConfig() {
     }
     engine.config = validateConfig(configPath ? JSON.parse(readFileSync(configPath, 'utf8')) : {});
   } catch { engine.config = validateConfig({ enabled: false }); }
+  if (previousDelay !== engine.config.switchDelaySeconds) clearMusicGap();
   localMusicEnabled = Boolean(root && readLocalPlayerEnabled(root));
   if (!localMusicEnabled) { try { clearLocalPlayback(root); } catch { /* A malformed private file is left untouched. */ } }
   applyMusic();
@@ -182,7 +212,7 @@ const watchdog = setInterval(() => {
 }, 15000);
 async function shutdown(code = 0) {
   if (stopping) return;
-  stopping = true; clearInterval(watchdog); clearTimeout(deadline); clearTimeout(reloadTimer); clearTimeout(musicReloadTimer); configWatcher?.close(); music.stop(); lines.close(); child?.kill();
+  stopping = true; clearMusicGap(); clearInterval(watchdog); clearTimeout(deadline); clearTimeout(reloadTimer); clearTimeout(musicReloadTimer); configWatcher?.close(); music.stop(); lines.close(); child?.kill();
   track('suspend'); emit(null); saveStatus(true);
   clearInterval(sampler); settings?.close(); if (output) await output.stop(); else { await rpc?.stop(); await bridge?.stop(); } process.exit(code);
 }

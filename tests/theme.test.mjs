@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
+import { contrastRatio } from '../vencord-plugin/EnhancedPresenceUniversal/palette.mjs';
 
 const read = path => readFileSync(new URL(`../${path}`, import.meta.url), 'utf8');
 
@@ -20,4 +21,12 @@ test('Messages is a standalone local theme without other themes option overrides
   assert.match(css, /ep-plus-own-marker/);
   assert.match(css, /prefers-reduced-transparency/);
   assert.match(css, /forced-colors/);
+});
+
+test('high-contrast Messages blue keeps outgoing white text at WCAG AA contrast', () => {
+  const css = read('themes/PresenceMessages.theme.css');
+  const highContrastBlue = css.match(/--ep-messages-blue-high-contrast:\s*(#[0-9a-f]{6})/i)?.[1];
+  assert.ok(highContrastBlue);
+  assert.ok(/@media\s*\(prefers-contrast:\s*more\)[\s\S]*?--ep-messages-blue:\s*var\(--ep-messages-blue-high-contrast\)/.test(css));
+  assert.ok(contrastRatio(highContrastBlue, '#FFFFFF') >= 4.5, `${highContrastBlue} does not meet 4.5:1 with white`);
 });

@@ -1,4 +1,8 @@
-# Enhanced Presence+ 0.10.0-beta.1
+# Enhanced Presence+ 0.10.0-beta.2
+
+- Restores delayed app switching, keeps app elapsed time tied to the running app, and suppresses app-card flashes between songs.
+- Adds private-by-default Apple Notes and a native Add Application picker with explicit Add and Allow.
+- Expands the separate Messages theme across navigation, controls, replies and reactions, with local per-DM background choices.
 
 - Adds a local Apple Music player with accents confined to the player.
 - Includes **Messages for Discord** as a separate optional theme. Plus keeps your current Discord theme and uses one normal toolbar button for its tools.

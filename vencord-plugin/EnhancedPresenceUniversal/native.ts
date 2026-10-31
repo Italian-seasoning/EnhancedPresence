@@ -4,7 +4,7 @@ import { join } from "path";
 import { randomUUID } from "crypto";
 import { readLocalPairing } from "./pairing.mjs";
 import { AgentControl, AppUpdate, updateAgent, BehaviorUpdate, readControls, readRuntimeStatus, updateApp, updateIdle, updateBehavior } from "./controls.mjs";
-import { app, shell } from "electron";
+import { app, dialog, shell } from "electron";
 import { existsSync, lstatSync, readFileSync, writeFileSync, renameSync, unlinkSync } from "fs";
 import { execFile } from "child_process";
 import { createInstalledIconLookup } from "./installed-icons.mjs";
@@ -28,6 +28,29 @@ export function getLocalPairing(_event: Electron.IpcMainInvokeEvent) { return re
 export function getAppControls(_event: Electron.IpcMainInvokeEvent) { return readControls(companionRoot()); }
 export function getRuntimeStatus(_event: Electron.IpcMainInvokeEvent) { return readRuntimeStatus(companionRoot()); }
 export function saveAppControl(_event: Electron.IpcMainInvokeEvent, input: AppUpdate) { return updateApp(companionRoot(), input); }
+export type ApplicationChoice = { id: string; name: string };
+export async function chooseApplication(_event: Electron.IpcMainInvokeEvent): Promise<ApplicationChoice | null> {
+    if (process.platform !== "darwin") throw Error("Application picker is available on macOS");
+    const result = await dialog.showOpenDialog({
+        title: "Add an Application",
+        buttonLabel: "Choose Application",
+        properties: ["openFile"],
+        filters: [{ name: "Applications", extensions: ["app"] }]
+    });
+    if (result.canceled || result.filePaths.length !== 1) return null;
+    const path = result.filePaths[0];
+    if (!path.toLowerCase().endsWith(".app")) throw Error("Select a macOS application bundle");
+    const bundle = lstatSync(path), infoPath = join(path, "Contents", "Info.plist"), info = lstatSync(infoPath);
+    if (!bundle.isDirectory() || bundle.isSymbolicLink() || !info.isFile() || info.isSymbolicLink() || info.size > 65536) throw Error("Application information is unavailable");
+    const plist = await new Promise<string>((resolve, reject) => execFile("/usr/bin/plutil", ["-convert", "json", "-o", "-", infoPath], { timeout: 3000, maxBuffer: 131072, encoding: "utf8" }, (error, stdout) => error ? reject(error) : resolve(stdout)));
+    const metadata = JSON.parse(plist) as Record<string, unknown>;
+    const id = metadata.CFBundleIdentifier;
+    const rawName = metadata.CFBundleDisplayName ?? metadata.CFBundleName;
+    const name = typeof rawName === "string" ? rawName : path.slice(path.lastIndexOf("/") + 1, -4);
+    if (typeof id !== "string" || id.length > 200 || !/^[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)+$/.test(id)
+        || typeof name !== "string" || name.length < 2 || name.length > 128 || /[\x00-\x1f\x7f-\x9f]/.test(name) || !name.trim()) throw Error("Application name or identifier is invalid");
+    return { id, name };
+}
 export function saveIdleDuration(_event: Electron.IpcMainInvokeEvent, seconds: number) { return updateIdle(companionRoot(), seconds); }
 export function saveBehavior(_event: Electron.IpcMainInvokeEvent, input: BehaviorUpdate) { return updateBehavior(companionRoot(), input); }
 const roots = ["/Applications", "/Applications/Utilities", "/System/Applications", "/System/Applications/Utilities", "/System/Library/CoreServices", join(homedir(), "Applications")];

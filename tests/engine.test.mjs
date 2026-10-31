@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { PresenceEngine } from '../presence-engine/engine.mjs';
+import { PresenceEngine, publicActivity } from '../presence-engine/engine.mjs';
 import { profiles, validateConfig } from '../presence-engine/profiles.mjs';
 import { discordActivity } from '../shared/protocol.mjs';
 const snapshot = (appId = 'com.roblox.RobloxPlayer', extra = {}) => ({ appId, pid: 123, idleSeconds: 0, inactive: false, ...extra });
@@ -39,6 +39,7 @@ test('all curated profiles produce safe app-aware activity', async () => {
   const engine = new PresenceEngine({ switchDelaySeconds: 0 });
   for (const id of Object.keys(profiles)) {
     const activity = await engine.update(snapshot(id, { windowTitle: 'SECRET', document: '/private/file', appName: 'SECRET' }), 200000);
+    if (!engine.config.allowlist.includes(id)) { assert.equal(activity, null); continue; }
     assert.equal(activity.appName, profiles[id][0]);
     assert.equal(JSON.stringify(activity).includes('SECRET'), false);
     assert.equal(JSON.stringify(activity).includes('/private'), false);
@@ -58,31 +59,107 @@ test('sessions survive repeated snapshots but reset on switch, PID restart, idle
 });
 test('replacement waits sixty stable seconds and preserves the foreground entry timestamp', async () => {
   const engine = new PresenceEngine({ switchDelaySeconds: 60 });
-  const first = await engine.update(snapshot(), 100000);
-  assert.deepEqual(await engine.update(snapshot('com.apple.Safari'), 110000), first);
+  const first = await engine.update(snapshot(undefined, { launchTimestamp: 90, runningApps: { 'com.roblox.RobloxPlayer': [123] } }), 100000);
+  const switching = snapshot('com.apple.Safari', { launchTimestamp: 105, runningApps: { 'com.roblox.RobloxPlayer': [123], 'com.apple.Safari': [123] } });
+  assert.deepEqual(await engine.update(switching, 110000), first);
   assert.equal(engine.nextDeadline(110000), 60000);
-  assert.deepEqual(await engine.update(snapshot('com.apple.Safari'), 169999), first);
-  const switched = await engine.update(snapshot('com.apple.Safari'), 170000);
+  assert.deepEqual(await engine.update(switching, 169999), first);
+  const switched = await engine.update(switching, 170000);
   assert.equal(switched.appId, 'com.apple.Safari');
-  assert.equal(switched.startTimestamp, 110);
+  assert.equal(switched.startTimestamp, 105);
   assert.equal(engine.pending, null);
   assert.equal(engine.nextDeadline(170000), null);
 });
+
+test('a replacement never keeps an exited app visible during its delay', async () => {
+  const engine = new PresenceEngine({ switchDelaySeconds: 60 });
+  const oldApp = 'com.roblox.RobloxPlayer', nextApp = 'com.apple.Safari';
+  const first = snapshot(oldApp, { pid: 123, launchTimestamp: 90, runningApps: { [oldApp]: [123] } });
+  const replacement = snapshot(nextApp, { pid: 456, launchTimestamp: 105, runningApps: { [nextApp]: [456] } });
+  await engine.update(first, 100000);
+  assert.equal(await engine.update(replacement, 110000), null);
+  assert.equal(engine.pending?.id, nextApp);
+  assert.equal(engine.session, null);
+  assert.equal((await engine.update(replacement, 170000)).appId, nextApp);
+});
+
+test('default 120 second switch delay holds only the old allowed process, then uses new launch time', async () => {
+  const engine = new PresenceEngine();
+  const oldApp = 'com.roblox.RobloxPlayer', nextApp = 'com.apple.Safari';
+  const first = await engine.update(snapshot(oldApp, { pid: 123, launchTimestamp: 90, runningApps: { [oldApp]: [123] } }), 100000);
+  const next = snapshot(nextApp, { pid: 456, launchTimestamp: 105, runningApps: { [oldApp]: [123], [nextApp]: [456] } });
+  assert.deepEqual(await engine.update(next, 110000), first);
+  assert.equal(engine.nextDeadline(110000), 120000);
+  assert.deepEqual(await engine.update(next, 229999), first);
+  const switched = await engine.update(next, 230000);
+  assert.equal(switched.appId, nextApp);
+  assert.equal(switched.startTimestamp, 105);
+});
+
+test('retained output is authorized by its own profile, not the current foreground profile', async () => {
+  const engine = new PresenceEngine({ switchDelaySeconds: 60 });
+  const oldApp = 'com.roblox.RobloxPlayer', unknownApp = 'org.example.Unlisted';
+  const first = await engine.update(snapshot(oldApp, { pid: 123, runningApps: { [oldApp]: [123] } }), 100000);
+  const held = await engine.update(snapshot(unknownApp, { pid: 456, runningApps: { [oldApp]: [123] } }), 110000);
+  assert.deepEqual(publicActivity(held, engine.config), first);
+  assert.equal(publicActivity({ ...held, appId: unknownApp }, engine.config), null);
+});
+
+test('unknown foreground holds only a still-running allowed app for the configured delay', async () => {
+  const engine = new PresenceEngine({ switchDelaySeconds: 60 });
+  const oldApp = 'com.roblox.RobloxPlayer', unknownApp = 'org.example.Unlisted';
+  const first = snapshot(oldApp, { pid: 123, launchTimestamp: 90, runningApps: { [oldApp]: [123] } });
+  const unknown = snapshot(unknownApp, { pid: 456, runningApps: { [oldApp]: [123] } });
+  await engine.update(first, 100000);
+  const held = await engine.update(unknown, 110000);
+  assert.equal(held.appId, oldApp);
+  assert.equal(await engine.update(unknown, 170000), null);
+  assert.equal(engine.session, null);
+});
+
+test('lock, idle, quiet hours, blocked apps and missing snapshots bypass pending retention', async () => {
+  const oldApp = 'com.roblox.RobloxPlayer', nextApp = 'com.apple.Safari';
+  const makeEngine = () => new PresenceEngine({ switchDelaySeconds: 60 });
+  const old = snapshot(oldApp, { pid: 123, launchTimestamp: 90, runningApps: { [oldApp]: [123] } });
+  const ordinarySwitch = snapshot(nextApp, { pid: 456, launchTimestamp: 105, runningApps: { [oldApp]: [123], [nextApp]: [456] } });
+  for (const invalid of [
+    snapshot(nextApp, { inactive: true, runningApps: { [oldApp]: [123] } }),
+    snapshot(nextApp, { idleSeconds: 300, runningApps: { [oldApp]: [123] } }),
+    null,
+    snapshot('com.apple.Passwords', { pid: 789, runningApps: { [oldApp]: [123] } })
+  ]) {
+    const engine = makeEngine();
+    const published = await engine.update(old, 100000);
+    assert.deepEqual(await engine.update(ordinarySwitch, 110000), published);
+    assert.equal(await engine.update(invalid, 120000), null);
+    assert.equal(engine.session, null);
+    assert.equal(engine.pending, null);
+  }
+  const quiet = makeEngine();
+  await quiet.update(old, 100000);
+  await quiet.update(ordinarySwitch, 110000);
+  quiet.config.quietHours = { enabled: true, start: '00:00', end: '23:59' };
+  assert.equal(await quiet.update(ordinarySwitch, new Date('2026-10-29T12:00:00Z').getTime()), null);
+  assert.equal(quiet.session, null);
+  assert.equal(quiet.pending, null);
+});
 test('pending replacements cancel on a third app, return, PID change and privacy clears', async () => {
   const engine = new PresenceEngine({ switchDelaySeconds: 60 });
-  const first = await engine.update(snapshot(), 100000);
-  await engine.update(snapshot('com.apple.Safari'), 110000);
-  await engine.update(snapshot('com.apple.TextEdit'), 130000);
+  const id = 'com.roblox.RobloxPlayer';
+  const firstInput = snapshot(id, { runningApps: { [id]: [123] } });
+  const first = await engine.update(firstInput, 100000);
+  await engine.update(snapshot('com.apple.Safari', { runningApps: { [id]: [123] } }), 110000);
+  await engine.update(snapshot('com.apple.TextEdit', { runningApps: { [id]: [123] } }), 130000);
   assert.equal(engine.pending.id, 'com.apple.TextEdit');
   assert.equal(engine.pending.dueAt, 190000);
-  assert.deepEqual(await engine.update(snapshot(), 140000), first);
+  assert.deepEqual(await engine.update(snapshot(id, { runningApps: { [id]: [123] } }), 140000), first);
   assert.equal(engine.pending, null);
-  await engine.update(snapshot(undefined, { pid: 456 }), 150000);
+  await engine.update(snapshot(id, { pid: 456, runningApps: { [id]: [123, 456] } }), 150000);
   assert.equal(engine.pending.pid, 456);
-  assert.equal((await engine.update(snapshot(undefined, { pid: 456 }), 210000)).startTimestamp, 150);
+  assert.equal((await engine.update(snapshot(id, { pid: 456, runningApps: { [id]: [123, 456] } }), 210000)).startTimestamp, 150);
   for (const invalid of [snapshot('com.apple.mail'), snapshot(undefined, { inactive: true }), snapshot(undefined, { idleSeconds: 300 }), null]) {
-    await engine.update(snapshot(), 220000);
-    await engine.update(snapshot('com.apple.Safari'), 230000);
+    await engine.update(snapshot(id, { runningApps: { [id]: [123] } }), 220000);
+    await engine.update(snapshot('com.apple.Safari', { runningApps: { [id]: [123] } }), 230000);
     assert.equal(await engine.update(invalid, 240000), null);
     assert.equal(engine.pending, null);
     assert.equal(engine.session, null);
@@ -100,10 +177,10 @@ test('revoking the published app while a replacement qualifies clears immediatel
 test('retained app activity immediately removes revoked private details', async () => {
   const id = 'com.apple.TextEdit';
   const engine = new PresenceEngine({ disclosure: { [id]: { showName: true, showContext: false } } });
-  await engine.update(snapshot(id, { documentName: 'PRIVATE' }), 100000);
-  await engine.update(snapshot(), 110000);
+  await engine.update(snapshot(id, { documentName: 'PRIVATE', runningApps: { [id]: [123] } }), 100000);
+  await engine.update(snapshot('com.hnc.Discord', { runningApps: { [id]: [123] } }), 110000);
   engine.config.disclosure[id].showName = false;
-  assert.equal((await engine.update(snapshot(), 120000)).details, 'Editing in TextEdit');
+  assert.equal((await engine.update(snapshot('com.hnc.Discord', { runningApps: { [id]: [123] } }), 120000)).details, 'Editing in TextEdit');
 });
 test('behavior settings have bounded defaults and validated music sources', () => {
   const c = validateConfig({});

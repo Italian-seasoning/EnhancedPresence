@@ -87,7 +87,7 @@ select, input[type=time] { width: auto; }
 <script>
 const token = document.querySelector('meta[name=ep-token]').content;
 const pages = [['apps', 'Apps'], ['agent', 'Task status'], ['schedule', 'Schedule'], ['system', 'Output and power'], ['about', 'About']];
-let state = null, page = 'apps', selected = null, filter = 'all', query = '', draft = {};
+let state = null, page = 'apps', selected = null, filter = 'all', query = '', draft = {}, addDraft = null, newName = '', newDetails = '';
 const $ = id => document.getElementById(id);
 const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 
@@ -103,6 +103,36 @@ function toast(text, error = false) {
 }
 async function save(name, body, message = 'Saved') {
   try { state = await call(`/api/${name}`, body); toast(message); render(); } catch (error) { toast(error.message, true); render(); }
+}
+async function chooseApplication() {
+  const handler = window.webkit?.messageHandlers?.chooseApplication;
+  if (!handler) { toast('Open Settings from the Enhanced Presence helper to choose an application.', true); return; }
+  try {
+    const choice = await handler.postMessage({});
+    if (choice == null) return;
+    if (typeof choice.id !== 'string' || !/^[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)+$/.test(choice.id) || choice.id.length > 200
+      || typeof choice.name !== 'string' || choice.name.length < 2 || choice.name.length > 128 || /[\x00-\x1f\x7f-\x9f]/.test(choice.name)) throw Error();
+    const existing = state.controls.apps.find(app => app.id === choice.id);
+    if (existing) {
+      addDraft = null; selected = existing.id; draft = { name: existing.name, details: existing.details };
+      toast('This app is already listed. Its current visibility was preserved.'); render(); return;
+    }
+    addDraft = { id: choice.id, name: choice.name };
+    newName = choice.name; newDetails = `Using ${choice.name}`.slice(0, 128); selected = choice.id;
+    render();
+  } catch { toast('Could not read the selected application. Nothing was changed.', true); }
+}
+async function addSelectedApplication() {
+  if (!addDraft) return;
+  const name = newName.trim(), details = newDetails.trim();
+  if (name.length < 2 || name.length > 128 || details.length < 2 || details.length > 128 || /[\x00-\x1f\x7f-\x9f]/.test(name + details)) {
+    toast('Use 2–128 characters in each public field.', true); return;
+  }
+  const id = addDraft.id;
+  try {
+    state = await call('/api/app', { id, visibility: 'allowed', create: true, name, details });
+    addDraft = null; selected = id; toast(`${name} added and allowed.`); render();
+  } catch (error) { toast(error.message || 'Could not add this application. Existing settings were left unchanged.', true); render(); }
 }
 async function refresh(first = false, automatic = false) { try { state = await call('/api/state'); render(first, automatic); } catch { $('status').innerHTML = '<span class="dot off"></span>Companion unavailable'; $('activity').textContent = ''; } }
 
@@ -125,16 +155,16 @@ const options = (list, value) => list.map(([v, l]) => `<option value="${v}" ${St
 const views = {
   apps() {
     const apps = state.controls.apps.filter(a => (filter === 'all' || a.visibility === filter) && `${a.name} ${a.details}`.toLowerCase().includes(query.toLowerCase()));
-    const app = state.controls.apps.find(a => a.id === selected) ?? apps.find(a => a.visibility === 'allowed') ?? apps[0];
+    const app = addDraft ? null : state.controls.apps.find(a => a.id === selected) ?? apps.find(a => a.visibility === 'allowed') ?? apps[0];
     if (app && selected !== app.id) { selected = app.id; draft = { name: app.name, details: app.details }; }
     const allowed = state.controls.apps.filter(a => a.visibility === 'allowed').length;
-  return `<h2>Apps</h2><p class="sub">${allowed} allowed · hidden apps stay private until you allow them.</p>
+  return `<h2>Apps</h2><p class="sub">${allowed} allowed · hidden apps stay private until you allow them.</p><button class="btn" id="chooseApp">Add application…</button>
     <div class="apps"><div>
       <input type="search" id="query" placeholder="Search apps" aria-label="Search apps" value="${esc(query)}">
       <div class="filters" role="group" aria-label="Filter">${['all', 'allowed', 'hidden', 'blocked'].map(f => `<button class="btn" data-filter="${f}" aria-pressed="${filter === f}">${f[0].toUpperCase() + f.slice(1)}</button>`).join('')}</div>
       <div class="list" role="group" aria-label="Apps">${apps.map(a => `<button class="item" data-app="${esc(a.id)}" aria-pressed="${a.id === selected}"><span class="avatar" aria-hidden="true">${esc(a.name[0])}</span><span>${esc(a.name)}</span><small class="tag-${a.visibility}">${a.visibility}</small></button>`).join('') || '<p class="sub" style="padding:12px">No apps match.</p>'}</div>
     </div>
-    <div class="card">${app ? `<h3>${esc(app.name)}</h3>
+    <div class="card">${addDraft ? `<h3>Add ${esc(addDraft.name)}</h3><p class="hint">Only this public app name and activity text are shared. Nothing is saved until you confirm.</p><p class="hint">Bundle identifier: <code>${esc(addDraft.id)}</code></p><div class="field"><label for="newName">Public app name</label><input type="text" id="newName" maxlength="128" value="${esc(newName)}"></div><div class="field"><label for="newDetails">Activity text</label><input type="text" id="newDetails" maxlength="128" value="${esc(newDetails)}"></div><div style="display:flex;gap:8px;margin-top:12px"><button class="btn primary" id="addApplication">Add and Allow</button><button class="btn" id="cancelAdd">Cancel</button></div>` : app ? `<h3>${esc(app.name)}</h3>
       <div class="seg" role="group" aria-label="Visibility">${[['allowed', 'Allow'], ['hidden', 'Hide'], ['blocked', 'Block']].map(([v, l]) => `<button data-vis="${v}" aria-pressed="${app.visibility === v}" ${app.protected || (!app.editable && v === 'allowed') ? 'disabled' : ''}>${l}</button>`).join('')}</div>
       <p class="hint" style="color:var(--muted);margin:10px 0">${app.protected ? 'This app always stays private.' : app.visibility === 'allowed' ? 'Visible while you use this app.' : app.visibility === 'blocked' ? 'Blocked, even if allowed elsewhere.' : 'Hidden until you allow it.'}</p>
       ${app.editable && !app.protected ? `<div class="field"><label for="name">Public name</label><input type="text" id="name" maxlength="128" value="${esc(draft.name)}"></div>
@@ -187,8 +217,12 @@ function render(rebuild = true, automatic = false) {
 }
 const bind = (id, event, fn) => { const el = $(id); if (el) el.addEventListener(event, fn); };
 function wire() {
+  bind('chooseApp', 'click', () => void chooseApplication());
+  bind('newName', 'input', e => newName = e.target.value); bind('newDetails', 'input', e => newDetails = e.target.value);
+  bind('addApplication', 'click', () => void addSelectedApplication());
+  bind('cancelAdd', 'click', () => { addDraft = null; render(); });
   document.querySelectorAll('[data-filter]').forEach(b => b.onclick = () => { filter = b.dataset.filter; render(); });
-  document.querySelectorAll('[data-app]').forEach(b => b.onclick = () => { selected = b.dataset.app; draft = {}; const a = state.controls.apps.find(x => x.id === selected); draft = { name: a.name, details: a.details }; render(); });
+  document.querySelectorAll('[data-app]').forEach(b => b.onclick = () => { addDraft = null; selected = b.dataset.app; draft = {}; const a = state.controls.apps.find(x => x.id === selected); draft = { name: a.name, details: a.details }; render(); });
   document.querySelectorAll('[data-vis]').forEach(b => b.onclick = () => save('app', { id: selected, visibility: b.dataset.vis }));
   bind('query', 'input', e => { query = e.target.value; render(); const q = $('query'); q.focus(); q.setSelectionRange(q.value.length, q.value.length); });
   bind('name', 'input', e => draft.name = e.target.value); bind('details', 'input', e => draft.details = e.target.value);

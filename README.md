@@ -12,12 +12,12 @@ macOS 13.5+ · Custom Vencord plugin · Unsigned beta · GPL-3.0-or-later
 
 ## Download and install
 
-[**Download the unsigned Plus beta**](https://github.com/Italian-seasoning/EnhancedPresence/releases/tag/v0.10.0-beta.1)
+[**Download the unsigned Plus beta**](https://github.com/Italian-seasoning/EnhancedPresence/releases/tag/v0.10.0-beta.2)
 
 | Your Mac | Download |
 | --- | --- |
-| Apple Silicon (M-series) | [Apple Silicon installer](https://github.com/Italian-seasoning/EnhancedPresence/releases/download/v0.10.0-beta.1/EnhancedPresence-0.10.0-beta.1-macOS-arm64.dmg) |
-| Intel | [Intel installer](https://github.com/Italian-seasoning/EnhancedPresence/releases/download/v0.10.0-beta.1/EnhancedPresence-0.10.0-beta.1-macOS-x64.dmg) |
+| Apple Silicon (M-series) | [Apple Silicon installer](https://github.com/Italian-seasoning/EnhancedPresence/releases/download/v0.10.0-beta.2/EnhancedPresence-0.10.0-beta.2-macOS-arm64.dmg) |
+| Intel | [Intel installer](https://github.com/Italian-seasoning/EnhancedPresence/releases/download/v0.10.0-beta.2/EnhancedPresence-0.10.0-beta.2-macOS-x64.dmg) |
 
 **This beta is unsigned and unnotarized. macOS may block it.** Only install it if you trust the release. The installer never disables Gatekeeper, removes quarantine, requests an administrator password, or grants privacy permissions. Checksums accompany the downloads.
 
@@ -44,15 +44,23 @@ Open **Presence+** beside the Discord message box for the Plus tools:
 
 Each module can be switched off. Existing Vencord settings, other plugin switches and enabled themes remain in place. Plus never selects a theme or restyles Discord's chat surfaces.
 
+Apps can be added from the helper or Vencord settings using **Choose Application…**, then **Add and Allow**. Apple Notes is available as a generic activity; note names and contents are never read. New entries start private until explicitly allowed.
+
 ### Optional Messages theme
 
 **Messages for Discord** is a separate compact theme with macOS system typography, blue outgoing bubbles, neutral incoming bubbles and frosted navigation, menus, settings and player surfaces in Discord's existing layout. It supports light/dark colors and Reduce Transparency, and loads no remote CSS, fonts or images.
 
 1. Open **Settings → Vencord → Themes → Open Themes Folder**.
-2. Copy **PresenceMessages.theme.css** from the DMG or [release download](https://github.com/Italian-seasoning/EnhancedPresence/releases/download/v0.10.0-beta.1/PresenceMessages.theme.css) into that folder.
+2. Copy **PresenceMessages.theme.css** from the DMG or [release download](https://github.com/Italian-seasoning/EnhancedPresence/releases/download/v0.10.0-beta.2/PresenceMessages.theme.css) into that folder.
 3. Turn off other full-client themes, then enable **Messages for Discord**. Turn it off to return to your previous theme. Theme files and options are preserved.
 
+For native macOS glass, set **Vencord → MacOS Window vibrancy style → Sidebar**, then fully quit and reopen Discord. The separate **Enable window transparency** switch is unnecessary for macOS vibrancy and can prevent window resizing. Reduce Transparency uses solid surfaces instead.
+
+Open **Presence+ → Appearance** in a DM to choose a background for that chat. Presets and normalized local photos stay in this Mac’s account-scoped storage and are separate from public presence. They apply only with the Messages theme enabled.
+
 Blue outgoing bubbles use Plus's hidden self-message marker or Vencord's built-in **ThemeAttributes** plugin. The theme can be used without the companion by enabling ThemeAttributes. Installation never changes your theme selection.
+
+With Plus, the composer's **+** menu groups the existing Discord and plugin actions. Turning off Messages restores the original buttons.
 
 - Allowed app names, artwork and elapsed time.
 - Compact native menu with connection, current activity, Pause and Settings.
@@ -61,6 +69,8 @@ Blue outgoing bubbles use Plus's hidden self-message marker or Vencord's built-i
 - App activity clears on idle or private apps. Music stays visible while playing; pause, sleep, lock, quiet hours and detector failure clear it.
 
 Choose **Prefer Apple Music** in Settings to keep your track visible in the background.
+
+When playback stops or track metadata is temporarily unavailable, the old song clears immediately. App activity resumes after the configured switch delay; a new playing track takes priority as soon as its metadata arrives.
 
 Vencord supports app names and artwork. Standalone mode avoids modifying Discord and shows text only; Discord may display your Developer Portal application's name there.
 

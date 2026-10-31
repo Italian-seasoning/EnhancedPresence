@@ -19,7 +19,7 @@ export interface Perf { cpuPercent: number; rssMB: number; saver: boolean; selfP
 export interface GeneralUpdate { quietHours?: Partial<QuietHours>; output?: "auto" | "vencord" | "ipc"; powerSaver?: "auto" | "on" | "off"; }
 export interface Controls { quietHours: QuietHours; output: "auto" | "vencord" | "ipc"; powerSaver: "auto" | "on" | "off"; agent: AgentControl; enabled: boolean; idleSeconds: number; namesAvailable: boolean; switchDelaySeconds: number; trackingEnabled: boolean; music: MusicSettings; usage: Record<string, AppUsage>; usageError?: string; apps: AppControl[]; }
 export interface BehaviorUpdate { enabled?: boolean; switchDelaySeconds?: number; trackingEnabled?: boolean; music?: Partial<MusicSettings>; }
-export interface AppUpdate { id: string; visibility: AppControl["visibility"]; name?: string; details?: string; reset?: boolean; showName?: boolean; showContext?: boolean; }
+export interface AppUpdate { id: string; visibility: AppControl["visibility"]; name?: string; details?: string; reset?: boolean; create?: true; showName?: boolean; showContext?: boolean; }
 export function readControls(root: string): Controls;
 export function updateApp(root: string, input: AppUpdate): Controls;
 export function updateIdle(root: string, seconds: number): Controls;

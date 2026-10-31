@@ -11,6 +11,8 @@ import type { NotificationRule, GroupedNotification } from "./notification-rules
 import type { VoiceSnapshot } from "./voice-state.mjs";
 import type { PluginNative } from "@utils/types";
 import { copyWithToast } from "@utils/discord";
+import { ChatBackgroundPanel } from "./ChatBackgroundPanel";
+import type { ChatBackground } from "./chat-backgrounds.mjs";
 
 type Native = PluginNative<typeof import("./native")> | undefined;
 export type SuiteTab = "music" | "shelf" | "workspaces" | "notifications" | "voice" | "appearance";
@@ -41,6 +43,10 @@ type Props = {
     onError(message: string): void;
     error: string;
     onDismissError(): void;
+    backgroundChannelId: string | null;
+    background?: ChatBackground;
+    backgroundError: string;
+    onBackgroundChange(value: ChatBackground | null): Promise<void>;
 };
 
 const tabFeature: Partial<Record<SuiteTab, keyof FeatureSettings>> = {
@@ -321,7 +327,7 @@ export function SuitePanel(props: Props) {
                     {props.tab === "workspaces" && (props.features.workspaces ? <WorkspacesPanel data={props.collections} onCreate={props.onCreateWorkspace} onAddCurrent={props.onAddCurrentChannel} onDelete={props.onDeleteWorkspace} onError={props.onError} /> : <p className="ep-plus-empty">Turn on workspaces in Appearance to access your saved channels.</p>)}
                     {props.tab === "notifications" && <NotificationsPanel enabled={props.features.notifications} rules={props.notificationRules} groups={groups} onChange={props.onNotificationRulesChange} onError={props.onError} />}
                     {props.tab === "voice" && <VoicePanel enabled={props.features.voice} voice={props.voice} onError={props.onError} onSetMute={props.onSetMute} onSetDeafen={props.onSetDeafen} />}
-                    {props.tab === "appearance" && <><AppearancePanel features={props.features} onChange={props.onFeatureChange} /><div className="ep-plus-section ep-plus-transfer"><h3>Local collections</h3><p>{activeMessages.length} saved messages · {props.collections?.workspaces.length ?? 0} workspaces</p><div className="ep-plus-actions"><button className="ep-plus-secondary" disabled={!shown || importing} onClick={props.onExport}>Export</button><label className="ep-plus-secondary ep-plus-file">{importing ? "Importing…" : "Import"}<input type="file" accept="application/json,.json" disabled={!shown || importing} onChange={event => void onImportFile(event)} /></label></div></div></>}
+                    {props.tab === "appearance" && <><AppearancePanel features={props.features} onChange={props.onFeatureChange} /><ChatBackgroundPanel channelId={props.backgroundChannelId} background={props.background} onChange={props.onBackgroundChange} onError={props.onError} />{props.backgroundError && <p className="ep-plus-hint" role="status">{props.backgroundError}</p>}<div className="ep-plus-section ep-plus-transfer"><h3>Local collections</h3><p>{activeMessages.length} saved messages · {props.collections?.workspaces.length ?? 0} workspaces</p><div className="ep-plus-actions"><button className="ep-plus-secondary" disabled={!shown || importing} onClick={props.onExport}>Export</button><label className="ep-plus-secondary ep-plus-file">{importing ? "Importing…" : "Import"}<input type="file" accept="application/json,.json" disabled={!shown || importing} onChange={event => void onImportFile(event)} /></label></div></div></>}
                 </>}
             </main>
             <footer className="ep-plus-footer"><span>{props.accountId ? "Saved locally for this Discord account" : "Sign in to use local collections"}</span><button className="ep-plus-link" disabled={!shown || importing} onClick={props.onExport}>Export data</button></footer>

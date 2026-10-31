@@ -2,6 +2,7 @@ import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { blocked } from './profiles.mjs';
 import { normalizeLocalPlayback } from './local-music.mjs';
+import { isDiscord } from './engine.mjs';
 
 const playerNames = {
   'com.apple.Music': 'Apple Music', 'com.spotify.client': 'Spotify',
@@ -10,12 +11,33 @@ const playerNames = {
   'com.microsoft.edgemac': 'Microsoft Edge', 'company.thebrowser.Browser': 'Arc',
   'com.google.Chrome.canary': 'Chrome Canary', 'ai.perplexity.comet': 'Comet', 'com.openai.atlas': 'ChatGPT Atlas'
 };
-const bundleId = value => typeof value === 'string' && value.length <= 160 && /^[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)+$/.test(value);
+const bundleId = value => typeof value === 'string' && value.length <= 200 && /^[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)+$/.test(value);
 const text = value => typeof value === 'string'
   ? value.replace(/[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2060-\u206f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 128)
   : '';
 const finite = value => typeof value === 'number' && Number.isFinite(value);
 const maxSeconds = 7 * 24 * 60 * 60;
+
+export function createMusicGapSuppressor({ now = Date.now } = {}) {
+  let expiresAt = 0;
+  return {
+    begin(durationMs) { expiresAt = finite(durationMs) && durationMs > 0 ? now() + durationMs : 0; },
+    clear() { expiresAt = 0; },
+    shouldSuppress({ activity, activityAllowed, config, snapshot, quietHours = false } = {}) {
+      if (expiresAt <= now()) { expiresAt = 0; return false; }
+      const safeContext = snapshot && snapshot.inactive === false && Number.isInteger(snapshot.pid) && snapshot.pid > 0
+        && finite(snapshot.idleSeconds) && snapshot.idleSeconds >= 0 && snapshot.idleSeconds < config?.idleSeconds
+        && (isDiscord(snapshot.appId) || !blocked.has(snapshot.appId)) && !config?.denylist?.includes(snapshot.appId);
+      const permitted = activity && activityAllowed && config?.enabled === true && config?.music?.enabled === true
+        && config.music.priority === 'music' && config.music.sources?.includes('com.apple.Music')
+        && config.allowlist?.includes('com.apple.Music') && !config.denylist?.includes('com.apple.Music')
+        && safeContext && !quietHours;
+      if (!permitted) { expiresAt = 0; return false; }
+      return true;
+    }
+  };
+}
+
 export function selectMusicActivity(activity, track, config, foregroundAppId, snapshot, quietHours = false) {
   if (!snapshot || !bundleId(snapshot.appId) || !Number.isInteger(snapshot.pid) || snapshot.pid <= 0
     || !finite(snapshot.idleSeconds) || snapshot.idleSeconds < 0 || snapshot.inactive !== false || quietHours) return activity;

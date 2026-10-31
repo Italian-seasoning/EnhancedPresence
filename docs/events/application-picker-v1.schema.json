@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/Italian-seasoning/EnhancedPresence/main/docs/events/application-picker-v1.schema.json",
+  "title": "Local application picker and explicit allow contract v1",
+  "description": "An explicitly activated native picker returns only the selected app's bundle identifier and display name. It never returns the filesystem path, scans installed apps, starts another process, or changes settings. The UI pre-fills editable public name/activity text; a separate explicit Add/Allow action creates the profile and allowlists only that selected app. Cancel returns null. Existing protected and denylist rules remain authoritative.",
+  "$defs": {
+    "bundleId": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 200,
+      "pattern": "^[A-Za-z0-9_-]+(?:\\.[A-Za-z0-9_-]+)+$"
+    },
+    "text": {
+      "type": "string",
+      "minLength": 2,
+      "maxLength": 128,
+      "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f]+$"
+    },
+    "selection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "name"],
+      "properties": {
+        "id": { "$ref": "#/$defs/bundleId" },
+        "name": { "$ref": "#/$defs/text" }
+      }
+    },
+    "pickerResponse": {
+      "anyOf": [
+        { "type": "null" },
+        { "$ref": "#/$defs/selection" }
+      ]
+    },
+    "addRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "visibility", "create", "name", "details"],
+      "properties": {
+        "id": { "$ref": "#/$defs/bundleId" },
+        "visibility": { "const": "allowed" },
+        "create": { "const": true },
+        "name": { "$ref": "#/$defs/text" },
+        "details": { "$ref": "#/$defs/text" }
+      }
+    }
+  },
+  "oneOf": [
+    { "$ref": "#/$defs/pickerResponse" },
+    { "$ref": "#/$defs/addRequest" }
+  ]
+}
