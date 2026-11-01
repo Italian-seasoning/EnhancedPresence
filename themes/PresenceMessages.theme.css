@@ -600,37 +600,54 @@ body {
     border: 0;
 }
 
-/* The name and time appear beside the bubble on hover or focus, never over the previous message. */
-:root[data-ep-direct-message] #app-mount [data-list-id="chat-messages"] [class*="message_"]:not([class*="systemMessage_"]) > [class*="contents_"] > [class*="header_"],
-#app-mount [data-list-id="chat-messages"] > li:is([data-is-self="true"], :has([data-is-self="true"], .ep-plus-own-marker)) [class*="message_"]:not([class*="systemMessage_"]) > [class*="contents_"] > [class*="header_"] {
+/*
+ * In DMs and on your own messages, only the time appears beside the bubble on hover or focus, never over
+ * a message. This covers the header of a run and Discord's gutter time on the messages that follow it.
+ */
+:root[data-ep-direct-message] #app-mount [data-list-id="chat-messages"] [class*="message_"]:not([class*="systemMessage_"]) > [class*="contents_"] > :is([class*="header_"], [class*="timestamp_"]),
+#app-mount [data-list-id="chat-messages"] > li:is([data-is-self="true"], :has([data-is-self="true"], .ep-plus-own-marker)) [class*="message_"]:not([class*="systemMessage_"]) > [class*="contents_"] > :is([class*="header_"], [class*="timestamp_"]) {
     position: absolute;
     position-anchor: --ep-bubble;
     top: anchor(center, 12px);
     left: calc(anchor(right, 16px) + 10px);
+    right: auto;
     z-index: 2;
     width: max-content;
+    height: auto;
     max-width: 40%;
     margin: 0;
     padding: 0;
     color: var(--ep-messages-muted);
-    font-size: 11px;
+    font: 500 11px/16px var(--font-primary);
+    text-align: start;
     white-space: nowrap;
     translate: 0 -50%;
     opacity: 0;
     pointer-events: none;
     transition: opacity 120ms ease-out;
+
+    /* The bubble side already says who wrote it; the name stays for screen readers. */
+    & [class*="headerText_"] { display: none; }
+    & :is([class*="timestamp_"], time) { margin: 0; color: inherit; font: inherit; }
 }
 
 /* :root lifts this above the DM rule above, so your own labels stay on the left. */
-:root #app-mount [data-list-id="chat-messages"] > li:is([data-is-self="true"], :has([data-is-self="true"], .ep-plus-own-marker)) [class*="message_"]:not([class*="systemMessage_"]) > [class*="contents_"] > [class*="header_"] {
+:root #app-mount [data-list-id="chat-messages"] > li:is([data-is-self="true"], :has([data-is-self="true"], .ep-plus-own-marker)) [class*="message_"]:not([class*="systemMessage_"]) > [class*="contents_"] > :is([class*="header_"], [class*="timestamp_"]) {
     left: auto;
     right: calc(anchor(left, 20px) + 10px);
 }
 
-:root[data-ep-direct-message] #app-mount [data-list-id="chat-messages"] [class*="message_"]:is(:hover, :focus-within) > [class*="contents_"] > [class*="header_"],
-#app-mount [data-list-id="chat-messages"] > li:is([data-is-self="true"], :has([data-is-self="true"], .ep-plus-own-marker)) [class*="message_"]:is(:hover, :focus-within) > [class*="contents_"] > [class*="header_"] {
+:root[data-ep-direct-message] #app-mount [data-list-id="chat-messages"] [class*="message_"]:is(:hover, :focus-within) > [class*="contents_"] > :is([class*="header_"], [class*="timestamp_"]),
+#app-mount [data-list-id="chat-messages"] > li:is([data-is-self="true"], :has([data-is-self="true"], .ep-plus-own-marker)) [class*="message_"]:is(:hover, :focus-within) > [class*="contents_"] > :is([class*="header_"], [class*="timestamp_"]) {
     opacity: 1;
     pointer-events: auto;
+}
+
+/* No full-width hover band behind bubbles; mentions keep their highlight. */
+#app-mount [data-list-id="chat-messages"] {
+    --background-message-hover: transparent;
+
+    & > li [class*="message_"]:not([class*="mentioned_"]):not([class*="replying_"]):hover { background-color: transparent; }
 }
 
 /* Your photos, files and embeds sit on the right with your bubbles. */
@@ -959,30 +976,41 @@ body {
         z-index: 2;
         display: flex;
         flex-wrap: nowrap;
-        gap: 0;
-        max-width: 220px;
+        align-items: center;
+        gap: 2px;
+        max-width: 160px;
+        min-height: 24px;
         margin: 0;
-        padding: 2px 4px;
+        padding: 2px 7px;
         overflow: hidden;
-        border: 1px solid var(--ep-messages-border);
+        border: 2px solid var(--ep-messages-chat);
         border-radius: 999px;
-        background: var(--ep-messages-floating);
-        box-shadow: 0 2px 8px rgb(0 0 0 / 18%);
-        translate: -16px -72%;
+        color: var(--ep-messages-text);
+        background: var(--ep-messages-incoming);
+        box-shadow: none;
+        translate: -14px -62%;
     }
 
-    & [class*="reactions_"] [class*="reaction_"] {
-        min-height: 22px;
+    /* Like Messages, the Tapback turns blue once you have reacted. */
+    & [class*="reactions_"]:has([class*="reactionMe_"]) { color: #fff; background: var(--ep-messages-blue); }
+
+    & [class*="reactions_"] :is([class*="reaction_"], [class*="reactionInner_"]) {
+        min-width: 0;
+        min-height: 0;
         margin: 0;
-        padding-inline: 4px;
+        padding: 0;
+        gap: 2px;
         border: 0;
+        border-radius: 999px;
+        color: inherit;
         background: transparent;
         box-shadow: none;
         -webkit-backdrop-filter: none;
         backdrop-filter: none;
     }
 
-    & [class*="reactions_"] [class*="reactionMe_"] { background: color-mix(in srgb, var(--ep-messages-blue) 28%, transparent); }
+    & [class*="reactions_"] [class*="reaction_"] img[class*="emoji"] { width: 16px; height: 16px; }
+    & [class*="reactions_"] [class*="reactionCount_"] { min-width: 0; margin: 0; color: inherit; font: 600 11px/1 var(--font-primary); }
     & [class*="reactions_"] [class*="reactionBtn_"] { display: none; }
 
     /* Nested so it outranks the pill rule above. */
@@ -992,6 +1020,9 @@ body {
         translate: 16px -72%;
     }
 }
+
+/* A 1:1 DM has two people, so the Tapback needs no count; the reaction button still announces it. */
+:root[data-ep-direct-message] #app-mount [data-list-id="chat-messages"] > li [class*="reactions_"] [class*="reactionCount_"] { display: none; }
 
 /* Embeds and link previews become rounded cards in the bubble colours; the accent stays as a thin edge. */
 #app-mount [data-list-id="chat-messages"] article[class*="embedFull_"] {
