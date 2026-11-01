@@ -568,6 +568,13 @@ body {
     text-decoration: underline;
 }
 
+/* Mentions in your blue bubbles are white on a light tint; Discord's blue would vanish on blue. */
+#app-mount [data-list-id="chat-messages"] :is([data-is-self="true"], li:has(.ep-plus-own-marker)) [class*="message_"]:not([class*="systemMessage_"]) > [class*="contents_"] > [id^="message-content-"]:is([class*="markup_"], :has([class*="markup_"])):not(:empty) .mention,
+#app-mount [data-list-id="chat-messages"] [data-is-self="true"][class*="message_"]:not([class*="systemMessage_"]) > [class*="contents_"] > [id^="message-content-"]:is([class*="markup_"], :has([class*="markup_"])):not(:empty) .mention {
+    color: #fff;
+    background-color: rgb(255 255 255 / 24%);
+}
+
 /* Like Messages, emoji-only messages (Discord marks them jumboable) sit on the background without a bubble. */
 #app-mount [data-list-id="chat-messages"] > li [class*="message_"]:not([class*="systemMessage_"]) > [class*="contents_"] > [id^="message-content-"]:is([class*="markup_"], :has([class*="markup_"])):not(:empty):has(img[class*="jumboable"]) {
     padding: 0;
@@ -601,14 +608,14 @@ body {
 }
 
 /*
- * In DMs and on your own messages, only the time appears beside the bubble on hover or focus, never over
- * a message. This covers the header of a run and Discord's gutter time on the messages that follow it.
+ * In DMs and on your own messages, only the time appears beside the bubble's bottom edge on hover or focus,
+ * clear of the Tapback on its top corner and never over a message. This covers the header of a run and Discord's gutter time on the messages that follow it.
  */
 :root[data-ep-direct-message] #app-mount [data-list-id="chat-messages"] [class*="message_"]:not([class*="systemMessage_"]) > [class*="contents_"] > :is([class*="header_"], [class*="timestamp_"]),
 #app-mount [data-list-id="chat-messages"] > li:is([data-is-self="true"], :has([data-is-self="true"], .ep-plus-own-marker)) [class*="message_"]:not([class*="systemMessage_"]) > [class*="contents_"] > :is([class*="header_"], [class*="timestamp_"]) {
     position: absolute;
     position-anchor: --ep-bubble;
-    top: anchor(center, 12px);
+    top: anchor(bottom, 24px);
     left: calc(anchor(right, 16px) + 10px);
     right: auto;
     z-index: 2;
@@ -621,7 +628,7 @@ body {
     font: 500 11px/16px var(--font-primary);
     text-align: start;
     white-space: nowrap;
-    translate: 0 -50%;
+    translate: 0 calc(-100% - 6px);
     opacity: 0;
     pointer-events: none;
     transition: opacity 120ms ease-out;
@@ -1011,7 +1018,8 @@ body {
 
     & [class*="reactions_"] [class*="reaction_"] img[class*="emoji"] { width: 16px; height: 16px; }
     & [class*="reactions_"] [class*="reactionCount_"] { min-width: 0; margin: 0; color: inherit; font: 600 11px/1 var(--font-primary); }
-    & [class*="reactions_"] [class*="reactionBtn_"] { display: none; }
+    & [class*="reactions_"] [class*="reactionBtn_"],
+    & [class*="reactions_"] > :not([class*="reaction_"], :has([class*="reaction_"])) { display: none; }
 
     /* Nested so it outranks the pill rule above. */
     &:is([data-is-self="true"], :has([data-is-self="true"], .ep-plus-own-marker)) [class*="reactions_"] {
