@@ -27,7 +27,9 @@ export function useChatBackground(accountId: string) {
     const background = state?.accountId === accountId && channelId ? state.chats[channelId] : undefined;
     React.useLayoutEffect(() => {
         const root = document.documentElement;
-        root.toggleAttribute("data-ep-direct-message", Boolean(channelId && ChannelStore.getChannel(channelId)?.type === 1 && UserStore.getCurrentUser()?.id === accountId));
+        const type = channelId && UserStore.getCurrentUser()?.id === accountId ? ChannelStore.getChannel(channelId)?.type : undefined;
+        root.toggleAttribute("data-ep-direct-message", type === 1);
+        root.toggleAttribute("data-ep-group-message", type === 3);
         const css = backgroundCss(background);
         if (css && UserStore.getCurrentUser()?.id === accountId) {
             root.style.setProperty("--ep-dm-wallpaper", css);
@@ -36,7 +38,7 @@ export function useChatBackground(accountId: string) {
             root.style.removeProperty("--ep-dm-wallpaper");
             root.removeAttribute("data-ep-dm-wallpaper");
         }
-        return () => { root.style.removeProperty("--ep-dm-wallpaper"); root.removeAttribute("data-ep-dm-wallpaper"); root.removeAttribute("data-ep-direct-message"); };
+        return () => { root.style.removeProperty("--ep-dm-wallpaper"); root.removeAttribute("data-ep-dm-wallpaper"); root.removeAttribute("data-ep-direct-message"); root.removeAttribute("data-ep-group-message"); };
     }, [accountId, channelId, background]);
     const save = async (next: ChatBackground | null) => {
         if (!state || state.accountId !== accountId || !channelId || UserStore.getCurrentUser()?.id !== accountId

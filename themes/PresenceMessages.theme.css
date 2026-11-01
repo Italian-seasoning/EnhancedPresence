@@ -509,8 +509,14 @@ body {
     #app-mount [role="menu"][id="ep-composer-actions"] [role="menuitem"] .ep-plus-composer-icon { transform: none; }
 }
 
+/* Each row's bubble is an anchor for its own Tapbacks and hover time, never a neighbour's. */
+#app-mount [data-list-id="chat-messages"] > li {
+    anchor-scope: --ep-bubble;
+}
+
 /* Bubble only regular message text; attachments, embeds, avatars and system rows keep their layout. */
 #app-mount [data-list-id="chat-messages"] [class*="message_"]:not([class*="systemMessage_"]) > [class*="contents_"] > [id^="message-content-"]:is([class*="markup_"], :has([class*="markup_"])):not(:empty) {
+    anchor-name: --ep-bubble;
     display: table;
     position: relative;
     width: fit-content;
@@ -562,14 +568,26 @@ body {
     text-decoration: underline;
 }
 
+/* Like Messages, emoji-only messages (Discord marks them jumboable) sit on the background without a bubble. */
+#app-mount [data-list-id="chat-messages"] > li [class*="message_"]:not([class*="systemMessage_"]) > [class*="contents_"] > [id^="message-content-"]:is([class*="markup_"], :has([class*="markup_"])):not(:empty):has(img[class*="jumboable"]) {
+    padding: 0;
+    background: transparent;
+
+    &::before { display: none; }
+}
+
 #app-mount [data-list-id="chat-messages"] [id^="message-content-"] :is(pre, code) {
     max-width: 100%;
     white-space: pre-wrap;
     overflow-wrap: anywhere;
 }
 
-/* In one-to-one DMs sender repetition is redundant; clip visually without removing accessible text. */
-:root[data-ep-direct-message] #app-mount [data-list-id="chat-messages"] [class*="message_"]:not([class*="systemMessage_"]) > [class*="contents_"] > :is([class*="avatar_"]:not(:focus-visible), [class*="avatarDecoration_"]) {
+/*
+ * Messages layout: in one-to-one DMs every sender, and in group DMs and servers your own rows, drop
+ * the avatar and name like Messages does. Clip visually without removing accessible text.
+ */
+:root[data-ep-direct-message] #app-mount [data-list-id="chat-messages"] [class*="message_"]:not([class*="systemMessage_"]) > [class*="contents_"] > :is([class*="avatar_"]:not(:focus-visible), [class*="avatarDecoration_"]),
+#app-mount [data-list-id="chat-messages"] > li:is([data-is-self="true"], :has([data-is-self="true"], .ep-plus-own-marker)) [class*="message_"]:not([class*="systemMessage_"]) > [class*="contents_"] > :is([class*="avatar_"]:not(:focus-visible), [class*="avatarDecoration_"]) {
     position: absolute;
     width: 1px;
     height: 1px;
@@ -582,24 +600,66 @@ body {
     border: 0;
 }
 
-:root[data-ep-direct-message] #app-mount [data-list-id="chat-messages"] [class*="message_"]:not([class*="systemMessage_"]) > [class*="contents_"] > [class*="header_"] {
+/* The name and time appear beside the bubble on hover or focus, never over the previous message. */
+:root[data-ep-direct-message] #app-mount [data-list-id="chat-messages"] [class*="message_"]:not([class*="systemMessage_"]) > [class*="contents_"] > [class*="header_"],
+#app-mount [data-list-id="chat-messages"] > li:is([data-is-self="true"], :has([data-is-self="true"], .ep-plus-own-marker)) [class*="message_"]:not([class*="systemMessage_"]) > [class*="contents_"] > [class*="header_"] {
     position: absolute;
-    inset: 0 20px auto 16px;
+    position-anchor: --ep-bubble;
+    top: anchor(center, 12px);
+    left: calc(anchor(right, 16px) + 10px);
     z-index: 2;
-    width: fit-content;
-    max-width: calc(100% - 36px);
+    width: max-content;
+    max-width: 40%;
     margin: 0;
-    padding: 2px 6px;
-    border-radius: 8px;
-    background: var(--ep-messages-floating);
-    transform: translateY(-90%);
+    padding: 0;
+    color: var(--ep-messages-muted);
+    font-size: 11px;
+    white-space: nowrap;
+    translate: 0 -50%;
     opacity: 0;
     pointer-events: none;
+    transition: opacity 120ms ease-out;
 }
 
-:root[data-ep-direct-message] #app-mount [data-list-id="chat-messages"] [class*="message_"]:is(:hover, :focus-within) > [class*="contents_"] > [class*="header_"] {
+/* :root lifts this above the DM rule above, so your own labels stay on the left. */
+:root #app-mount [data-list-id="chat-messages"] > li:is([data-is-self="true"], :has([data-is-self="true"], .ep-plus-own-marker)) [class*="message_"]:not([class*="systemMessage_"]) > [class*="contents_"] > [class*="header_"] {
+    left: auto;
+    right: calc(anchor(left, 20px) + 10px);
+}
+
+:root[data-ep-direct-message] #app-mount [data-list-id="chat-messages"] [class*="message_"]:is(:hover, :focus-within) > [class*="contents_"] > [class*="header_"],
+#app-mount [data-list-id="chat-messages"] > li:is([data-is-self="true"], :has([data-is-self="true"], .ep-plus-own-marker)) [class*="message_"]:is(:hover, :focus-within) > [class*="contents_"] > [class*="header_"] {
     opacity: 1;
     pointer-events: auto;
+}
+
+/* Your photos, files and embeds sit on the right with your bubbles. */
+#app-mount [data-list-id="chat-messages"] > li:is([data-is-self="true"], :has([data-is-self="true"], .ep-plus-own-marker)) [id^="message-accessories-"] {
+    justify-items: end;
+
+    & > * {
+        justify-self: end;
+        margin-inline-start: auto;
+    }
+}
+
+/* Group DMs and servers: other people get a small name label above their run of bubbles. */
+:root:not([data-ep-direct-message]) #app-mount [data-list-id="chat-messages"] > li:not([data-is-self="true"]):not(:has([data-is-self="true"], .ep-plus-own-marker)) [class*="message_"]:not([class*="systemMessage_"]) > [class*="contents_"] > [class*="header_"] {
+    margin-bottom: 2px;
+    font-size: 12px;
+    line-height: 16px;
+
+    & [class*="username_"] { font-size: 12px; font-weight: 500; }
+    & time { opacity: 0; transition: opacity 120ms ease-out; }
+}
+
+:root:not([data-ep-direct-message]) #app-mount [data-list-id="chat-messages"] > li [class*="message_"]:is(:hover, :focus-within) > [class*="contents_"] > [class*="header_"] time {
+    opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    #app-mount [data-list-id="chat-messages"] [class*="message_"] > [class*="contents_"] > [class*="header_"],
+    #app-mount [data-list-id="chat-messages"] [class*="message_"] > [class*="contents_"] > [class*="header_"] time { transition: none; }
 }
 
 :root[data-ep-direct-message] #app-mount [data-list-id="chat-messages"] [class*="message_"]:not([class*="systemMessage_"]) {
@@ -806,44 +866,51 @@ body {
 }
 
 /* Replies remain clickable Discord references; reactions retain their existing actions. */
+/* The quoted message is a faded copy of its bubble, as in Messages' inline replies. */
 #app-mount [data-list-id="chat-messages"] [class*="repliedMessage_"] {
     position: relative;
     width: fit-content;
-    max-width: min(80%, 560px);
-    padding: 4px 9px;
-    margin-block: 4px;
-    border: 1px solid var(--ep-messages-border);
+    max-width: min(70%, 520px);
+    padding: 4px 10px;
+    margin-block: 4px 3px;
+    border: 0;
     border-radius: 14px;
-    background: transparent;
+    background: color-mix(in srgb, var(--ep-messages-incoming) 55%, transparent);
     color: var(--ep-messages-muted);
     font: 12px/1.4 var(--font-primary);
 }
-/* Shape Discord's existing clickable spine without replacing its expanded hit target. */
+/*
+ * One curved line from the quote down to the reply (a ╭ on the left, ╮ for your own replies),
+ * drawn on Discord's existing clickable spine so its expanded hit target is preserved.
+ */
 #app-mount [data-list-id="chat-messages"] [class*="repliedMessage_"] > [class*="repliedMessageClickableSpine_"] {
-    left: -12px;
+    left: -14px;
     right: auto;
     top: 50%;
-    bottom: -12px;
-    width: 12px;
+    bottom: -22px;
+    width: 14px;
     height: auto;
-    border-width: 2px 0 2px 2px;
-    border-radius: 12px 0 0 12px;
+    border-style: solid;
+    border-width: 2px 0 0 2px;
+    border-radius: 12px 0 0 0;
     border-color: var(--ep-messages-border);
 }
 #app-mount [data-list-id="chat-messages"] :is([data-is-self="true"], li:has(.ep-plus-own-marker)) [class*="message_"] > [class*="repliedMessage_"],
 #app-mount [data-list-id="chat-messages"] [data-is-self="true"][class*="message_"] > [class*="repliedMessage_"] {
     margin-left: auto;
     margin-right: 0;
+    background: color-mix(in srgb, var(--ep-messages-blue) 30%, transparent);
+    color: var(--ep-messages-text);
 
     & > [class*="repliedMessageClickableSpine_"] {
         left: auto;
-        right: -12px;
-        border-width: 2px 2px 2px 0;
-        border-radius: 0 12px 12px 0;
+        right: -14px;
+        border-width: 2px 2px 0 0;
+        border-radius: 0 12px 0 0;
     }
 }
 #app-mount [data-list-id="chat-messages"] [class*="repliedMessage_"]:is(:hover, :focus-within) {
-    border-color: var(--ep-messages-blue);
+    outline: 1px solid var(--ep-messages-blue);
 
     & > [class*="repliedMessageClickableSpine_"] { border-color: var(--ep-messages-blue); }
 }
@@ -865,6 +932,85 @@ body {
 #app-mount [data-list-id="chat-messages"] [class*="reactionCount_"] {
     font: 600 11px var(--font-primary);
     color: var(--ep-messages-text);
+}
+
+/* Compact chips everywhere: reactor faces and the inline add button only add clutter. */
+#app-mount [data-list-id="chat-messages"] [class*="reaction_"] :is(img:not([class*="emoji"]), [class*="avatar"]) {
+    display: none;
+}
+#app-mount [data-list-id="chat-messages"] > li:not(:hover):not(:focus-within) [class*="reactions_"] [class*="reactionBtn_"] {
+    opacity: 0;
+}
+
+/*
+ * DMs and group DMs: reactions become Tapbacks on the bubble's top corner, top-right for incoming
+ * and top-left for your own, with room reserved above the bubble. They keep their own controls.
+ */
+:root:is([data-ep-direct-message], [data-ep-group-message]) #app-mount [data-list-id="chat-messages"] > li:has([class*="reactions_"] [class*="reaction_"]):has([class*="contents_"] > [id^="message-content-"] [class*="markup_"], [class*="contents_"] > [id^="message-content-"][class*="markup_"]:not(:empty)) {
+    & [id^="message-accessories-"] { position: static; }
+    & [class*="message_"] > [class*="contents_"] > [id^="message-content-"] { margin-top: 16px; }
+
+    & [class*="reactions_"] {
+        position: absolute;
+        position-anchor: --ep-bubble;
+        top: anchor(top);
+        left: anchor(right);
+        right: auto;
+        z-index: 2;
+        display: flex;
+        flex-wrap: nowrap;
+        gap: 0;
+        max-width: 220px;
+        margin: 0;
+        padding: 2px 4px;
+        overflow: hidden;
+        border: 1px solid var(--ep-messages-border);
+        border-radius: 999px;
+        background: var(--ep-messages-floating);
+        box-shadow: 0 2px 8px rgb(0 0 0 / 18%);
+        translate: -16px -72%;
+    }
+
+    & [class*="reactions_"] [class*="reaction_"] {
+        min-height: 22px;
+        margin: 0;
+        padding-inline: 4px;
+        border: 0;
+        background: transparent;
+        box-shadow: none;
+        -webkit-backdrop-filter: none;
+        backdrop-filter: none;
+    }
+
+    & [class*="reactions_"] [class*="reactionMe_"] { background: color-mix(in srgb, var(--ep-messages-blue) 28%, transparent); }
+    & [class*="reactions_"] [class*="reactionBtn_"] { display: none; }
+
+    /* Nested so it outranks the pill rule above. */
+    &:is([data-is-self="true"], :has([data-is-self="true"], .ep-plus-own-marker)) [class*="reactions_"] {
+        left: auto;
+        right: anchor(left);
+        translate: 16px -72%;
+    }
+}
+
+/* Embeds and link previews become rounded cards in the bubble colours; the accent stays as a thin edge. */
+#app-mount [data-list-id="chat-messages"] article[class*="embedFull_"] {
+    border-left-width: 3px;
+    border-radius: 18px;
+    background: var(--ep-messages-incoming);
+    font-family: var(--font-primary);
+
+    & :is([class*="embedImage_"], [class*="embedThumbnail_"], [class*="embedVideo_"], [class*="embedMedia_"]) img,
+    & :is([class*="embedImage_"], [class*="embedVideo_"], [class*="embedMedia_"]) { border-radius: 12px; }
+}
+
+#app-mount [data-list-id="chat-messages"] > li:is([data-is-self="true"], :has([data-is-self="true"], .ep-plus-own-marker)) article[class*="embedFull_"] {
+    background: color-mix(in srgb, var(--ep-messages-blue) 22%, var(--ep-messages-incoming));
+}
+
+#app-mount [data-list-id="chat-messages"] [id^="message-accessories-"] :is([class*="imageWrapper_"], [class*="visualMediaItemContainer_"], [class*="mosaicItem_"]) {
+    border-radius: 16px;
+    overflow: hidden;
 }
 #app-mount [class*="replyBar_"] {
     border: 1px solid var(--ep-messages-border);
@@ -1031,8 +1177,18 @@ body {
     #app-mount [data-list-id="chat-messages"] [class*="buttonsInner_"] { -webkit-backdrop-filter: none; backdrop-filter: none; }
     #app-mount :is([class*="privateChannels_"], nav[class*="guilds_"])::after { display: none; }
     :root[data-ep-dm-wallpaper] #app-mount [class*="chatContent_"]::before { display: none; }
+    /* Solid quotes; the Tapback pill and embed cards already use opaque colours. */
+    #app-mount [data-list-id="chat-messages"] [class*="message_"] > [class*="repliedMessage_"] { background: var(--ep-messages-incoming); }
+    #app-mount [data-list-id="chat-messages"] :is([data-is-self="true"], li:has(.ep-plus-own-marker)) [class*="message_"] > [class*="repliedMessage_"],
+    #app-mount [data-list-id="chat-messages"] [data-is-self="true"][class*="message_"] > [class*="repliedMessage_"] {
+        background: color-mix(in srgb, var(--ep-messages-blue) 30%, var(--ep-messages-incoming));
+    }
 }
 @media (forced-colors: active) {
+    #app-mount [data-list-id="chat-messages"] [class*="reactions_"],
+    #app-mount [data-list-id="chat-messages"] article[class*="embedFull_"] { color: CanvasText; background: Canvas; border-color: CanvasText; box-shadow: none; }
+    #app-mount [data-list-id="chat-messages"] [class*="reactionMe_"] { outline: 2px solid Highlight; outline-offset: -2px; }
+    #app-mount [data-list-id="chat-messages"] [class*="repliedMessageClickableSpine_"] { border-color: CanvasText; }
     #app-mount [class*="sidebarList_"]:has([class*="privateChannels_"]) { background: Canvas; }
     :root[data-ep-dm-wallpaper] #app-mount [class*="chatContent_"]::before { display: none; }
     #app-mount [data-list-id="chat-messages"] :is([class*="reaction_"], [class*="repliedMessage_"]) { color: CanvasText; background: Canvas; border-color: CanvasText; }
