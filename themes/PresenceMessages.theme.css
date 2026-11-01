@@ -617,19 +617,22 @@ body {
 }
 
 /*
- * In DMs and on your own messages, only the time appears beside the bubble's bottom edge on hover or focus,
+ * In DMs and on your own messages, the native timestamp appears beside the bubble's bottom edge on hover or focus,
  * clear of the Tapback on its top corner and never over a message. This covers the header of a run and Discord's gutter time on the messages that follow it.
  */
 :root[data-ep-direct-message] #app-mount [data-list-id="chat-messages"] [class*="message_"]:not([class*="systemMessage_"]) > [class*="contents_"] > :is([class*="header_"], [class*="timestamp_"]),
 #app-mount [data-list-id="chat-messages"] > li:is([data-is-self="true"], :has([data-is-self="true"], .ep-plus-own-marker)) [class*="message_"]:not([class*="systemMessage_"]) > [class*="contents_"] > :is([class*="header_"], [class*="timestamp_"]) {
     position: absolute;
     position-anchor: --ep-bubble;
+    display: flex;
+    align-items: center;
     top: anchor(bottom, 24px);
     left: calc(anchor(right, 16px) + 10px);
     right: auto;
     z-index: 2;
     width: max-content;
     height: auto;
+    min-height: 0;
     max-width: 40%;
     margin: 0;
     padding: 0;
@@ -637,14 +640,14 @@ body {
     font: 500 11px/16px var(--font-primary);
     text-align: start;
     white-space: nowrap;
-    translate: 0 calc(-100% - 6px);
+    translate: 0 -100%;
     opacity: 0;
     pointer-events: none;
     transition: opacity 120ms ease-out;
 
     /* The bubble side already says who wrote it; the name stays for screen readers. */
     & [class*="headerText_"] { display: none; }
-    & :is([class*="timestamp_"], time) { margin: 0; color: inherit; font: inherit; }
+    & :is([class*="timestamp_"], time) { height: auto; min-height: 0; margin: 0; padding: 0; color: inherit; font: inherit; }
 }
 
 /* :root lifts this above the DM rule above, so your own labels stay on the left. */
@@ -706,7 +709,16 @@ body {
 }
 
 :root[data-ep-direct-message] #app-mount [data-list-id="chat-messages"] [class*="message_"]:not([class*="systemMessage_"]) {
+    min-height: 0;
+    padding-block: 0;
     padding-inline: 16px 20px;
+
+    & > [class*="contents_"] > [id^="message-content-"] { margin-block-start: 0; }
+}
+
+/* A keyboard-focused avatar reappears at its native size, so reserve its space again. */
+:root[data-ep-direct-message] #app-mount [data-list-id="chat-messages"] [class*="message_"]:has(> [class*="contents_"] > [class*="avatar_"]:focus-visible) {
+    min-height: 44px;
 }
 
 :root[data-ep-direct-message] #app-mount [data-list-id="chat-messages"] [class*="cozyMessage_"]:not([class*="systemMessage_"]) {
@@ -783,6 +795,7 @@ body {
     background: transparent;
     box-shadow: none;
 }
+#app-mount [class*="privateChannels_"] > [class*="searchBar_"] > button,
 #app-mount [class*="privateChannels_"] [class*="searchBarComponent_"] {
     display: flex;
     align-items: center;
@@ -797,6 +810,8 @@ body {
     text-align: left;
 
     & > * { font: inherit; text-align: inherit; }
+    & > [class*="buttonChildrenWrapper_"] { justify-content: flex-start; }
+    & [class*="buttonChildren_"] { font: inherit; }
 }
 #app-mount [class*="privateChannels_"] [class*="channel_"] {
     margin-block: 3px;
@@ -1246,6 +1261,7 @@ body {
         -webkit-backdrop-filter: none;
         backdrop-filter: none;
     }
+    #app-mount [class*="privateChannels_"] > [class*="searchBar_"] > button,
     #app-mount [class*="privateChannels_"] [class*="searchBarComponent_"] {
         color: CanvasText;
         background: Canvas;
