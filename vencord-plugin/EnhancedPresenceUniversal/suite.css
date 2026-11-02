@@ -1,5 +1,6 @@
 /* Licensed under GPL-3.0-or-later. */
-.ep-plus-own-marker { display: none; }
+.ep-plus-own-marker,
+.ep-plus-repeat-author { display: none; }
 
 .ep-plus-backdrop {
     position: fixed;

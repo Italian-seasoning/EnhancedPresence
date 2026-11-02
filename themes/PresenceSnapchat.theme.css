@@ -197,8 +197,8 @@ body {
 
 #app-mount [class*="chat_"] > [class*="subtitleContainer_"]:has(> [class*="title_"][class*="container_"]:only-child),
 #app-mount [class*="chat_"] > [class*="title_"][class*="container_"] {
-    position: absolute;
-    inset: 0 0 auto;
+    position: relative;
+    flex-shrink: 0;
     z-index: 3;
     pointer-events: none;
 }
@@ -208,7 +208,7 @@ body {
 }
 
 #app-mount [class*="chat_"] [data-list-id="chat-messages"] {
-    padding-top: 52px;
+    padding-top: 8px;
 }
 
 #app-mount [class*="title_"][class*="container_"] > [class*="upperContainer_"] > [class*="children_"] {
@@ -587,11 +587,26 @@ body {
     text-decoration: underline;
 }
 
-/* Mentions in your blue bubbles are white on a light tint; Discord's blue would vanish on blue. */
+/* Role mentions carry inline colors; the bubble's readable mention palette takes precedence. */
+#app-mount [data-list-id="chat-messages"] [id^="message-content-"] .mention {
+    padding-inline: 3px;
+    border-radius: 5px;
+    color: var(--ep-snapchat-mention-text, var(--ep-snapchat-text)) !important;
+    background: var(--ep-snapchat-mention-background, color-mix(in srgb, var(--text-link) 14%, transparent)) !important;
+    font-weight: 600;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    -webkit-box-decoration-break: clone;
+    box-decoration-break: clone;
+
+    &:is(:hover, :focus-visible) { text-decoration: underline; text-underline-offset: 2px; }
+    &:focus-visible { outline: 2px solid currentColor; outline-offset: 1px; }
+}
+
 #app-mount [data-list-id="chat-messages"] :is([data-is-self="true"], li:has(.ep-plus-own-marker)) [class*="message_"]:not([class*="systemMessage_"]) > [class*="contents_"] > [id^="message-content-"]:is([class*="markup_"], :has([class*="markup_"])):not(:empty) .mention,
 #app-mount [data-list-id="chat-messages"] [data-is-self="true"][class*="message_"]:not([class*="systemMessage_"]) > [class*="contents_"] > [id^="message-content-"]:is([class*="markup_"], :has([class*="markup_"])):not(:empty) .mention {
-    color: #fff;
-    background-color: rgb(255 255 255 / 24%);
+    color: var(--ep-snapchat-own-mention-text, #fff) !important;
+    background: var(--ep-snapchat-own-mention-background, rgb(0 0 0 / 18%)) !important;
 }
 
 /* Like Messages, emoji-only messages (Discord marks them jumboable) sit on the background without a bubble. */
@@ -613,7 +628,9 @@ body {
  * the avatar and name like Messages does. Clip visually without removing accessible text.
  */
 :root[data-ep-direct-message] #app-mount [data-list-id="chat-messages"] [class*="message_"]:not([class*="systemMessage_"]) > [class*="contents_"] > :is([class*="avatar_"]:not(:focus-visible), [class*="avatarDecoration_"]),
-:root[data-ep-direct-message] #app-mount [data-list-id="chat-messages"] [class*="repliedMessage_"]:has(> [class*="repliedTextPreview_"]) > :not([class*="repliedTextPreview_"], [class*="repliedMessageClickableSpine_"]):not(:focus-visible),
+:root[data-ep-direct-message] #app-mount [data-list-id="chat-messages"] [class*="repliedMessage_"]:has(> [class*="repliedTextPreview_"]) > :not([class*="repliedTextPreview_"], [class*="repliedMessageClickableSpine_"]):not(:focus-within),
+#app-mount [data-list-id="chat-messages"] [class*="repliedMessage_"] :is([class*="replyAvatar_"]:not(:focus-visible), [class*="clanTagChiplet_"]:not(:focus-within)),
+#app-mount [data-list-id="chat-messages"] > li > [class*="message_"]:has(> [id^="message-accessories-"] > .ep-plus-repeat-author) > [class*="contents_"] > :is([class*="avatar_"]:not(:focus-visible), [class*="avatarDecoration_"]),
 #app-mount [data-list-id="chat-messages"] > li:is([data-is-self="true"], :has([data-is-self="true"], .ep-plus-own-marker)) [class*="message_"]:not([class*="systemMessage_"]) > [class*="contents_"] > :is([class*="avatar_"]:not(:focus-visible), [class*="avatarDecoration_"]) {
     position: absolute;
     width: 1px;
@@ -680,8 +697,8 @@ body {
     & > li [class*="message_"]:not([class*="mentioned_"]):not([class*="replying_"]):hover { background-color: transparent; }
 }
 
-/* Keep a DM mention cue on the bubble instead of painting the whole conversation width. */
-:root[data-ep-direct-message] #app-mount [data-list-id="chat-messages"] [class*="message_"][class*="mentioned_"] {
+/* Keep mention emphasis on text bubbles; media-only mention cues retain Discord's layout. */
+#app-mount [data-list-id="chat-messages"] [class*="message_"][class*="mentioned_"]:has(> [class*="contents_"] > [id^="message-content-"]:not(:empty)) {
     background: transparent;
 
     &::before { display: none; }
@@ -740,7 +757,8 @@ body {
     margin-block-start: 8px;
 }
 
-.ep-plus-own-marker { display: none; }
+.ep-plus-own-marker,
+.ep-plus-repeat-author { display: none; }
 
 .ep-plus-panel {
     width: min(560px, 100%);
@@ -1267,6 +1285,12 @@ body {
 }
 
 @media (forced-colors: active) {
+    :root {
+        --ep-snapchat-mention-text: LinkText;
+        --ep-snapchat-mention-background: Canvas;
+        --ep-snapchat-own-mention-text: LinkText;
+        --ep-snapchat-own-mention-background: Canvas;
+    }
     html, body, #app-mount { color: CanvasText; background: Canvas; background-image: none; }
     #app-mount :is([class*="bg_"], [class*="app_"], [class*="chatContent_"], [class*="chat_"], [class*="sidebarList_"], [class*="privateChannels_"], [class*="membersWrap_"], [class*="panels_"], [class*="title_"][class*="container_"], nav[class*="guilds_"], [class*="standardSidebarView_"], [class*="sidebarRegionScroller_"], [class*="contentRegionScroller_"], [class*="channelTextArea_"], [class*="searchBar_"], [role="menu"], [role="listbox"], [class*="userPopoutOuter_"], [class*="messagesPopoutWrap_"], [class*="recentMentionsPopout_"]) {
         color: CanvasText;
@@ -1452,7 +1476,10 @@ body {
     background: color-mix(in srgb, var(--ep-snapchat-blue) 8%, var(--ep-snapchat-chat));
 
     & a { color: var(--text-link); }
-    & .mention { color: var(--text-link); background: color-mix(in srgb, var(--ep-snapchat-blue) 12%, transparent); }
+    & .mention {
+        color: var(--ep-snapchat-own-mention-text, var(--ep-snapchat-text)) !important;
+        background: var(--ep-snapchat-own-mention-background, color-mix(in srgb, var(--ep-snapchat-blue) 12%, transparent)) !important;
+    }
 }
 
 :root #app-mount [data-list-id="chat-messages"] > li:is([data-is-self="true"], :has([data-is-self="true"], .ep-plus-own-marker)) [class*="message_"]:not([class*="systemMessage_"]) > [class*="contents_"] > [id^="message-content-"]:has(img[class*="jumboable"]) { margin-inline: 0 auto; }
