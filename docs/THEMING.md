@@ -34,6 +34,8 @@ The CSS leaves `html`, `body` and the app backing transparent and layers translu
 - **Per-DM wallpaper:** `:root[data-ep-dm-wallpaper]` is distinct from the direct-message marker and is set only for a selected 1:1 or group DM with a saved background. Use the prevalidated `--ep-dm-wallpaper` value only on the chat-content backdrop pseudo layer; don't apply it to servers or the message list itself.
 - **Presence+ panel:** `.ep-plus-*` rules may refine the panel while this theme is selected. Don't let the standalone theme change the panel's data, actions, or ownership of local background settings.
 
+Conversation sizing uses intrinsic flex shrink and capped percentages, so sidebars can narrow the chat without a viewport breakpoint. Header search can shrink while native actions remain present; bubbles cap at 620px/88% and quotes at 520px/84%. Do not add a query container to the chat: it changes the sizing context of Discord's own container-relative units and shrinks the composer incorrectly. Reaction focus outlines use the text token so selected blue chips still show keyboard focus. Snapchat resets its selected-row text aliases to HighlightText in forced colors.
+
 Class stems and structural relationships are compatibility hooks, not a public Discord API. Recheck them after Discord updates rather than copying generated suffixes into a new theme. Keep a new theme's palette separate from its component rules so the same surface map can guide another design.
 
 ## Update workflow

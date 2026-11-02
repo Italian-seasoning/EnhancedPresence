@@ -163,6 +163,11 @@
 @media (forced-colors: active) {
     :root { --ep-snapchat-yellow: Highlight; --ep-snapchat-rail: CanvasText; --ep-snapchat-own-rail: Highlight; }
     #app-mount [class*="privateChannels_"] :is([class*="selected_"], [class*="interactiveSelected_"]) {
+        --text-primary: HighlightText;
+        --text-default: HighlightText;
+        --text-normal: HighlightText;
+        --text-secondary: HighlightText;
+        --text-muted: HighlightText;
         color: HighlightText;
         background: Highlight;
         & :is([class*="name_"], [class*="subText_"], [class*="activityText_"]) { color: HighlightText; }

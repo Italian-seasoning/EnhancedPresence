@@ -235,7 +235,15 @@ body {
 }
 
 #app-mount [class*="title_"][class*="container_"] [class*="toolbar_"] {
+    min-width: 0;
+    gap: 6px;
     margin-left: auto;
+}
+
+/* Let search give space back to native header actions in a narrow conversation. */
+#app-mount [class*="title_"][class*="container_"] [class*="toolbar_"] [class*="search_"] {
+    flex: 0 1 244px;
+    min-width: 80px;
 }
 
 #app-mount [class*="title_"][class*="container_"] [class*="toolbar_"] > [class*="iconWrapper_"][class*="clickable_"][role="button"]:not([class*="iconDisabled_"]):not([aria-disabled="true"]) {
@@ -264,6 +272,9 @@ body {
 
 /* Blur the conversation behind the actual search field, not its layout wrapper. */
 #app-mount [class*="title_"][class*="container_"] [class*="searchBar_"] {
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
     border: 1px solid var(--ep-snapchat-border);
     border-radius: 999px;
     -webkit-backdrop-filter: blur(32px) saturate(120%);
@@ -528,7 +539,7 @@ body {
     display: table;
     position: relative;
     width: fit-content;
-    max-width: min(76%, 620px);
+    max-width: min(88%, 620px);
     margin: 2px 0 0;
     padding: 5px 10px;
     border-radius: 18px 18px 18px 5px;
@@ -957,7 +968,7 @@ body {
 #app-mount [data-list-id="chat-messages"] [class*="repliedMessage_"] {
     position: relative;
     width: fit-content;
-    max-width: min(70%, 520px);
+    max-width: min(84%, 520px);
     padding: 4px 10px;
     margin-block: 6px 14px;
     border: 1px solid var(--ep-snapchat-border);
@@ -1103,7 +1114,7 @@ body {
     & [class*="reactions_"] [class*="reaction_"] { flex: 0 0 auto; min-width: 24px; min-height: 24px; }
     & [class*="reactions_"] [class*="reactionInner_"] { padding: 4px; }
     & [class*="reactions_"] [class*="reactionMe_"] { color: #fff; background: var(--ep-snapchat-blue); }
-    & [class*="reactions_"] [class*="reaction_"]:focus-within { outline: 2px solid var(--ep-snapchat-blue); outline-offset: -2px; }
+    & [class*="reactions_"] [class*="reaction_"]:focus-within { outline: 2px solid var(--ep-snapchat-text); outline-offset: -2px; }
 
     & [class*="reactions_"] [class*="reaction_"] img[class*="emoji"] { width: 16px; height: 16px; }
     & [class*="reactions_"] [class*="reactionCount_"] { min-width: 0; margin: 0; color: inherit; font: 600 11px/1 var(--font-primary); }
@@ -1529,6 +1540,11 @@ body {
 @media (forced-colors: active) {
     :root { --ep-snapchat-yellow: Highlight; --ep-snapchat-rail: CanvasText; --ep-snapchat-own-rail: Highlight; }
     #app-mount [class*="privateChannels_"] :is([class*="selected_"], [class*="interactiveSelected_"]) {
+        --text-primary: HighlightText;
+        --text-default: HighlightText;
+        --text-normal: HighlightText;
+        --text-secondary: HighlightText;
+        --text-muted: HighlightText;
         color: HighlightText;
         background: Highlight;
         & :is([class*="name_"], [class*="subText_"], [class*="activityText_"]) { color: HighlightText; }
