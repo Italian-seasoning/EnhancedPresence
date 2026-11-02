@@ -16,6 +16,20 @@ test('release downloads require the expected digest and exact official filename'
   assert.throws(() => checksumFor(`${sum}  other.tar.gz`, 'node.tar.gz'), /checksum/i);
 });
 
+test('optional themes stage as standalone downloads with explicit manual selection', async () => {
+  const { stageOptionalThemes } = await import('../scripts/package-macos.mjs');
+  const stage = mkdtempSync(join(tmpdir(), 'presence-themes-'));
+  try {
+    stageOptionalThemes(stage);
+    for (const name of ['PresenceMessages.theme.css', 'PresenceSnapchat.theme.css']) {
+      assert.equal(readFileSync(join(stage, name), 'utf8'), readFileSync(new URL(`../themes/${name}`, import.meta.url), 'utf8'));
+    }
+    const instructions = readFileSync(join(stage, 'Optional themes.txt'), 'utf8');
+    assert.match(instructions, /enable only one/i);
+    assert.match(instructions, /does not select or enable/i);
+  } finally { rmSync(stage, { recursive: true, force: true }); }
+});
+
 test('payload staging includes runtime and licenses, excludes private state and source maps', () => {
   const temp = mkdtempSync(join(tmpdir(), 'presence-package-'));
   const repo = join(temp, 'source'), inputs = join(temp, 'inputs'), app = join(temp, 'EnhancedPresence Helper.app');

@@ -1,0 +1,181 @@
+/* Snapchat-inspired geometry, layered over the verified local surface map. */
+:root,
+.theme-light:not(.custom-user-profile-theme) {
+    --ep-snapchat-yellow: #fffc00;
+    --ep-snapchat-chat: rgb(255 255 255 / 97%);
+    --ep-snapchat-sidebar: rgb(246 247 248 / 94%);
+    --ep-snapchat-glass: rgb(255 255 255 / 88%);
+    --ep-snapchat-floating: rgb(255 255 255 / 96%);
+    --ep-snapchat-incoming: #eff1f3;
+    --ep-snapchat-rail: #d92c47;
+    --ep-snapchat-own-rail: #0878df;
+}
+
+:root:is(.theme-dark, .theme-darker, .theme-midnight),
+.theme-dark:not(.custom-user-profile-theme),
+.theme-darker:not(.custom-user-profile-theme),
+.theme-midnight:not(.custom-user-profile-theme) {
+    --ep-snapchat-chat: rgb(18 19 21 / 97%);
+    --ep-snapchat-sidebar: rgb(25 27 30 / 94%);
+    --ep-snapchat-glass: rgb(34 36 40 / 88%);
+    --ep-snapchat-floating: rgb(34 36 40 / 96%);
+    --ep-snapchat-incoming: #292c31;
+    --ep-snapchat-rail: #ff607a;
+    --ep-snapchat-own-rail: #58b6ff;
+}
+
+#app-mount [class*="privateChannels_"] :is([class*="selected_"], [class*="interactiveSelected_"]) {
+    --text-primary: #141414;
+    --text-default: #141414;
+    --text-normal: #141414;
+    --text-secondary: #343430;
+    --text-muted: #343430;
+    color: #141414;
+    background: var(--ep-snapchat-yellow);
+    border-radius: 14px;
+
+    & :is([class*="name_"], [class*="subText_"], [class*="activityText_"]) { color: #141414; }
+}
+
+#app-mount [data-ep-composer-ready] [data-ep-composer-toggle] {
+    color: #141414;
+    background: var(--ep-snapchat-yellow);
+    border-color: transparent;
+    box-shadow: none;
+}
+
+#app-mount [class*="title_"][class*="container_"] > [class*="upperContainer_"] > [class*="children_"] {
+    border-radius: 16px;
+    box-shadow: none;
+}
+
+#app-mount [class*="channelTextArea_"] {
+    border-radius: 22px;
+    box-shadow: none;
+}
+
+/* Sender rails and quieter rectangular text surfaces distinguish this from Messages. */
+#app-mount [data-list-id="chat-messages"] [class*="message_"]:not([class*="systemMessage_"]) > [class*="contents_"] > [id^="message-content-"]:is([class*="markup_"], :has([class*="markup_"])):not(:empty):not(:has(img[class*="jumboable"])) {
+    margin-inline: 0 auto;
+    padding: 5px 10px;
+    border: 0;
+    border-left: 3px solid var(--ep-snapchat-rail);
+    border-radius: 2px 10px 10px 2px;
+    color: var(--ep-snapchat-text);
+    background: color-mix(in srgb, var(--ep-snapchat-incoming) 60%, transparent);
+
+    &::before, &::after { display: none; }
+}
+
+:root #app-mount [data-list-id="chat-messages"] > li:is([data-is-self="true"], :has([data-is-self="true"], .ep-plus-own-marker)) [class*="message_"]:not([class*="systemMessage_"]) > [class*="contents_"] > [id^="message-content-"]:not(:empty):not(:has(img[class*="jumboable"])) {
+    margin-inline: 0 auto;
+    border-color: var(--ep-snapchat-own-rail);
+    border-radius: 2px 10px 10px 2px;
+    color: var(--ep-snapchat-text);
+    background: color-mix(in srgb, var(--ep-snapchat-blue) 8%, var(--ep-snapchat-chat));
+
+    & a { color: var(--text-link); }
+    & .mention { color: var(--text-link); background: color-mix(in srgb, var(--ep-snapchat-blue) 12%, transparent); }
+}
+
+:root #app-mount [data-list-id="chat-messages"] > li:is([data-is-self="true"], :has([data-is-self="true"], .ep-plus-own-marker)) [class*="message_"]:not([class*="systemMessage_"]) > [class*="contents_"] > [id^="message-content-"]:has(img[class*="jumboable"]) { margin-inline: 0 auto; }
+
+/* Keep media and hover metadata beside the left-aligned text they describe. */
+:root #app-mount [data-list-id="chat-messages"] > li:is([data-is-self="true"], :has([data-is-self="true"], .ep-plus-own-marker)) [id^="message-accessories-"] {
+    justify-items: start;
+    & > * { justify-self: start; margin-inline-start: 0; }
+}
+
+:root:root #app-mount [data-list-id="chat-messages"] > li:is([data-is-self="true"], :has([data-is-self="true"], .ep-plus-own-marker)) [class*="message_"] > [class*="contents_"] > :is([class*="header_"], [class*="timestamp_"]) {
+    left: calc(anchor(right, 16px) + 10px);
+    right: auto;
+}
+
+#app-mount [data-list-id="chat-messages"] [class*="repliedMessage_"],
+:root #app-mount [data-list-id="chat-messages"] > li:is([data-is-self="true"], :has([data-is-self="true"], .ep-plus-own-marker)) [class*="message_"] > [class*="repliedMessage_"] {
+    margin: 7px 0 6px;
+    padding: 6px 11px;
+    border: 0;
+    border-left: 3px solid var(--ep-snapchat-muted);
+    border-radius: 3px 9px 9px 3px;
+    background: var(--ep-snapchat-incoming);
+
+    & > [class*="repliedMessageClickableSpine_"] {
+        inset: 0 auto 0 -3px;
+        width: 3px;
+        border: 0;
+        border-radius: 0;
+    }
+}
+
+/* Native wrapping reaction chips, including counts, stay below the text. */
+:root:root:is([data-ep-direct-message], [data-ep-group-message]) #app-mount [data-list-id="chat-messages"] > li:has([class*="reactions_"] [class*="reaction_"]):has([class*="contents_"] > [id^="message-content-"] [class*="markup_"], [class*="contents_"] > [id^="message-content-"][class*="markup_"]:not(:empty)) {
+    & [class*="message_"] > [class*="contents_"] > [id^="message-content-"] { margin-top: 0; }
+    & [class*="reactions_"] {
+        position: static;
+        position-anchor: auto;
+        inset: auto;
+        translate: none;
+        flex-wrap: wrap;
+        gap: 5px;
+        max-width: 100%;
+        min-height: 0;
+        margin: 5px 0;
+        padding: 0;
+        overflow: visible;
+        border: 0;
+        border-radius: 0;
+        background: transparent;
+    }
+    & [class*="reactions_"] [class*="reaction_"] {
+        min-height: 26px;
+        padding-inline: 3px;
+        border: 1px solid var(--ep-snapchat-border);
+        border-radius: 9px;
+        color: var(--ep-snapchat-text);
+        background: var(--ep-snapchat-incoming);
+    }
+    & [class*="reactions_"] [class*="reactionMe_"] {
+        border-color: var(--ep-snapchat-own-rail);
+        background: color-mix(in srgb, var(--ep-snapchat-blue) 12%, var(--ep-snapchat-incoming));
+    }
+    & [class*="reactions_"] [class*="reactionCount_"] { display: block; }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+    :root, .theme-light:not(.custom-user-profile-theme) {
+        --ep-snapchat-chat: #fff;
+        --ep-snapchat-sidebar: #f6f7f8;
+        --ep-snapchat-glass: #fff;
+        --ep-snapchat-floating: #fff;
+    }
+    :root:is(.theme-dark, .theme-darker, .theme-midnight),
+    .theme-dark:not(.custom-user-profile-theme),
+    .theme-darker:not(.custom-user-profile-theme),
+    .theme-midnight:not(.custom-user-profile-theme) {
+        --ep-snapchat-chat: #121315;
+        --ep-snapchat-sidebar: #191b1e;
+        --ep-snapchat-glass: #222428;
+        --ep-snapchat-floating: #222428;
+    }
+}
+
+@media (forced-colors: active) {
+    :root { --ep-snapchat-yellow: Highlight; --ep-snapchat-rail: CanvasText; --ep-snapchat-own-rail: Highlight; }
+    #app-mount [class*="privateChannels_"] :is([class*="selected_"], [class*="interactiveSelected_"]) {
+        --text-primary: HighlightText;
+        --text-default: HighlightText;
+        --text-normal: HighlightText;
+        --text-secondary: HighlightText;
+        --text-muted: HighlightText;
+        color: HighlightText;
+        background: Highlight;
+        & :is([class*="name_"], [class*="subText_"], [class*="activityText_"]) { color: HighlightText; }
+    }
+    #app-mount [data-ep-composer-ready] [data-ep-composer-toggle] { color: ButtonText; background: ButtonFace; border-color: ButtonText; }
+    #app-mount [data-list-id="chat-messages"] :is([id^="message-content-"], [class*="repliedMessage_"], [class*="reaction_"]) {
+        color: CanvasText;
+        background: Canvas;
+        border-color: CanvasText;
+    }
+}

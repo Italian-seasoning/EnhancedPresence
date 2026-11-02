@@ -46,7 +46,7 @@ Each module can be switched off. Existing Vencord settings, other plugin switche
 
 Apps can be added from the helper or Vencord settings using **Choose Application…**, then **Add and Allow**. Apple Notes is available as a generic activity; note names and contents are never read. New entries start private until explicitly allowed.
 
-### Optional Messages theme
+### Optional themes
 
 **Messages for Discord** is a separate compact theme with macOS system typography, blue outgoing bubbles, neutral incoming bubbles and frosted navigation, menus, settings and player surfaces in Discord's existing layout. It supports light/dark colors and Reduce Transparency, and loads no remote CSS, fonts or images.
 
@@ -56,11 +56,13 @@ Apps can be added from the helper or Vencord settings using **Choose Application
 
 For native macOS glass, set **Vencord → MacOS Window vibrancy style → Sidebar**, then fully quit and reopen Discord. The separate **Enable window transparency** switch is unnecessary for macOS vibrancy and can prevent window resizing. Reduce Transparency uses solid surfaces instead.
 
-Open **Presence+ → Appearance** in a DM to choose a background for that chat. Presets and normalized local photos stay in this Mac’s account-scoped storage and are separate from public presence. They apply only with the Messages theme enabled.
+Open **Presence+ → Appearance** in a DM to choose a background for that chat. Presets and normalized local photos stay in this Mac’s account-scoped storage and are separate from public presence. They apply with either optional theme enabled.
 
 Blue outgoing bubbles use Plus's hidden self-message marker or Vencord's built-in **ThemeAttributes** plugin. The theme can be used without the companion by enabling ThemeAttributes. Installation never changes your theme selection.
 
 With Plus, the composer's **+** menu groups the existing Discord and plugin actions. Turning off Messages restores the original buttons.
+
+**Snapchat for Discord** is a separate optional theme with yellow navigation accents, sender-color chat rails, inset replies and compact reaction chips. Copy [PresenceSnapchat.theme.css](themes/PresenceSnapchat.theme.css) into the same Themes folder and enable it on its own. It supports the same compact composer and local DM backgrounds. Switch between the two themes in Vencord; neither changes your saved theme choices automatically. Both standalone stylesheets are included in the next installer build, with no source build needed to use them.
 
 - Allowed app names, artwork and elapsed time.
 - Compact native menu with connection, current activity, Pause and Settings.

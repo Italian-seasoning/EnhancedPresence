@@ -23,10 +23,42 @@ test('Messages is a standalone local theme without other themes option overrides
   assert.match(css, /forced-colors/);
 });
 
+test('Snapchat ships a current self-contained variant with independent tokens and accessibility fallbacks', async () => {
+  const { snapchatTheme } = await import('../scripts/build-snapchat-theme.mjs');
+  const css = read('themes/PresenceSnapchat.theme.css');
+  assert.equal(css, snapchatTheme(), 'Run npm run build:themes after changing either theme source');
+  assert.match(css, /@name Snapchat for Discord/);
+  assert.match(css, /--ep-snapchat-yellow:\s*#fffc00/i);
+  assert.doesNotMatch(css, /--ep-messages-|@import\b|url\s*\(/i);
+  for (const boundary of ['prefers-reduced-transparency', 'prefers-reduced-motion', 'forced-colors', 'data-ep-dm-wallpaper', 'data-ep-composer-ready']) assert.ok(css.includes(boundary), boundary);
+});
+
 test('high-contrast Messages blue keeps outgoing white text at WCAG AA contrast', () => {
   const css = read('themes/PresenceMessages.theme.css');
   const highContrastBlue = css.match(/--ep-messages-blue-high-contrast:\s*(#[0-9a-f]{6})/i)?.[1];
   assert.ok(highContrastBlue);
   assert.ok(/@media\s*\(prefers-contrast:\s*more\)[\s\S]*?--ep-messages-blue:\s*var\(--ep-messages-blue-high-contrast\)/.test(css));
   assert.ok(contrastRatio(highContrastBlue, '#FFFFFF') >= 4.5, `${highContrastBlue} does not meet 4.5:1 with white`);
+});
+
+test('Messages anchors hover labels and Tapbacks to each row\'s own bubble', () => {
+  const css = read('themes/PresenceMessages.theme.css');
+  const braces = css.replace(/\/\*[\s\S]*?\*\//g, '');
+  assert.equal(braces.split('{').length, braces.split('}').length, 'unbalanced braces');
+  assert.match(css, /\[data-list-id="chat-messages"\] > li \{\s*anchor-scope: --ep-bubble;/);
+  assert.match(css, /anchor-name: --ep-bubble;/);
+  const tapbacks = css.slice(css.indexOf(':root:is([data-ep-direct-message], [data-ep-group-message])'));
+  assert.ok(tapbacks.length < css.length, 'Tapbacks are scoped to DMs and group DMs');
+  const block = tapbacks.slice(0, tapbacks.indexOf('\n}\n'));
+  assert.match(block, /\[class\*="reactions_"\] \{[^}]*position-anchor: --ep-bubble;/);
+  assert.match(block, /&:is\(\[data-is-self="true"\][^{]*\[class\*="reactions_"\] \{[^}]*right: anchor\(left\);/);
+  assert.doesNotMatch(css.replace(block, ''), /\[class\*="reactions_"\] \{[^}]*position-anchor/);
+});
+
+test('the plugin marks one-to-one and group DMs separately and clears both', () => {
+  const source = read('vencord-plugin/EnhancedPresenceUniversal/useChatBackground.ts');
+  assert.match(source, /toggleAttribute\("data-ep-direct-message", type === 1\)/);
+  assert.match(source, /toggleAttribute\("data-ep-group-message", type === 3\)/);
+  assert.match(source, /removeAttribute\("data-ep-direct-message"\)/);
+  assert.match(source, /removeAttribute\("data-ep-group-message"\)/);
 });

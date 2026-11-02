@@ -8,7 +8,7 @@ import { phrase, agentActivity } from '../presence-engine/agent.mjs';
 import { PresenceEngine } from '../presence-engine/engine.mjs';
 
 const hook = join(import.meta.dirname, '../presence-engine/agent-hook.sh');
-const fire = (dir, payload, env = {}) => execFileSync('/bin/sh', [hook], { input: JSON.stringify(payload), env: { ...process.env, EP_AGENT_DIR: dir, ...env } });
+const fire = (dir, payload) => execFileSync('/bin/sh', [hook], { input: JSON.stringify(payload), env: { ...process.env, EP_AGENT_DIR: dir } });
 const tool = (dir, event, name, command) => fire(dir, { hook_event_name: event, tool_name: name, tool_input: command ? { command } : {} });
 const fresh = () => mkdtempSync(join(tmpdir(), 'ep-'));
 
@@ -24,8 +24,9 @@ test('hook records categories only, never prompts, paths or commands', () => {
 
 test('hook ignores its own status-writer calls', () => {
   const dir = fresh();
-  fire(dir, { hook_event_name: 'UserPromptSubmit', cwd: '/x/demo' }, { EP_AI: '1' });
+  execFileSync('/bin/sh', [hook], { stdio: 'ignore', env: { ...process.env, EP_AGENT_DIR: dir, EP_AI: '1' } });
   assert.throws(() => readFileSync(join(dir, 'agent-task')));
+  assert.throws(() => readFileSync(join(dir, 'agent-events.log')));
 });
 
 test('failing test then edit reads as squashing bugs; otherwise accurate phrases', () => {

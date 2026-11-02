@@ -27,6 +27,11 @@ export function checksumFor(text, filename) {
   return matches[0][0];
 }
 
+export function stageOptionalThemes(stage) {
+  for (const name of ['PresenceMessages.theme.css', 'PresenceSnapchat.theme.css']) cpSync(join(source, 'themes', name), join(stage, name));
+  writeFileSync(join(stage, 'Optional themes.txt'), 'Optional Discord themes\n\nIn Discord, open Settings > Vencord > Themes > Open Themes Folder. Copy PresenceMessages.theme.css or PresenceSnapchat.theme.css into that folder. Turn off other full-client themes and enable only one of these themes. Your other theme files and settings are kept.\n\nMessages uses shaped bubbles, outlined replies and Tapbacks. Snapchat uses sender-color rails, inset quotes, reaction chips and yellow navigation accents. Both keep Discord actions and layout.\n\nFor native macOS frost, choose Settings > Vencord > Vencord > MacOS Window vibrancy style > Sidebar. Leave Enable window transparency off, then fully quit and reopen Discord.\n\nSender styling uses Enhanced Presence+ or Vencord ThemeAttributes. No remote CSS, fonts or images are loaded by either theme. The Plus installer does not select or enable themes.\n');
+}
+
 function bundleInfo(name, executable, identifier, version, background) {
   return `<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n<plist version="1.0"><dict>
 <key>CFBundleName</key><string>${xml(name)}</string><key>CFBundleDisplayName</key><string>${xml(name)}</string>
@@ -182,9 +187,8 @@ async function main(args = process.argv.slice(2)) {
   cleanSigningMetadata(outer);
   run('/usr/bin/codesign', ['--force', '--sign', '-', outer]);
   run('/usr/bin/codesign', ['--verify', '--deep', '--strict', outer]);
-  cpSync(join(source, 'themes', 'PresenceMessages.theme.css'), join(stage, 'PresenceMessages.theme.css'));
+  stageOptionalThemes(stage);
   writeFileSync(join(stage, 'Read Me.txt'), `Enhanced Presence ${version} — unsigned beta\n\nOpen Install Enhanced Presence.app. It installs the helper in your user Applications folder and bundles all runtime dependencies. No source build, Node installation, Xcode or administrator password is needed.\n\nmacOS may block this unsigned, unnotarized beta. No script disables Gatekeeper or clears quarantine. Only proceed if you trust this release.\n\nFirst use needs a public Discord Application ID, never an account/bot token. Review allowed apps before resuming sharing. Core app presence needs no Accessibility or screen/input monitoring.\n\nTo uninstall the companion, reopen this installer and choose Uninstall. Settings/history and Vencord remain.\n\nSource, licenses and current instructions: https://github.com/Italian-seasoning/EnhancedPresence\n`);
-  writeFileSync(join(stage, 'Messages theme.txt'), 'Optional Messages for Discord theme\n\nIn Discord, open Settings > Vencord > Themes > Open Themes Folder. Copy PresenceMessages.theme.css into that folder, then select it in Themes. Turn off other full-client themes before enabling Messages. Your other theme files and settings are kept.\n\nFor native macOS frost, open Settings > Vencord > Vencord > MacOS Window vibrancy style and choose Sidebar. Leave Enable window transparency off, then fully quit and reopen Discord. CSS blur supplies the floating controls inside the window.\n\nBlue outgoing bubbles use Enhanced Presence+ or the built-in Vencord ThemeAttributes plugin. No remote CSS, fonts or images are loaded by the theme. The Plus installer does not select or enable themes.\n');
   const name = `EnhancedPresence-${version}-macOS-${arch}.dmg`, dmg = join(output, name);
   run('/usr/bin/hdiutil', ['create', '-volname', 'Enhanced Presence', '-srcfolder', stage, '-format', 'UDZO', '-ov', dmg]);
   writeFileSync(`${dmg}.sha256`, `${digest(readFileSync(dmg))}  ${name}\n`);
