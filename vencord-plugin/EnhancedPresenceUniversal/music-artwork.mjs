@@ -1,7 +1,10 @@
 const endpoint = 'https://itunes.apple.com/search';
 const maxResponseBytes = 128 * 1024;
 const maxArtistBytes = 256 * 1024;
-const maxRequestsPerMinute = 10;
+// Apple asks Search API clients to stay near 20 calls a minute. Artist pages use a
+// separate, smaller budget so skipped songs cannot starve the next song's album art.
+const maxSearchesPerMinute = 20;
+const maxArtistPagesPerMinute = 10;
 const maxEntries = 64;
 const positiveTTL = 60 * 60 * 1000;
 const negativeTTL = 60 * 1000;
@@ -91,8 +94,12 @@ function htmlPortrait(bytes) {
   return null;
 }
 
-export function createMusicImagesLookup({ fetchImpl = globalThis.fetch, now = Date.now } = {}) {
-  const tracks = new Map(), artists = new Map(), trackFlight = new Map(), artistFlight = new Map(), requestTimes = [];
+// Search the listener's own store; songs can exist only in a regional catalog.
+function storeCountry(value) { return typeof value === 'string' && /^[a-z]{2}$/i.test(value) ? value.toUpperCase() : 'US'; }
+
+export function createMusicImagesLookup({ fetchImpl = globalThis.fetch, now = Date.now, country } = {}) {
+  const tracks = new Map(), artists = new Map(), trackFlight = new Map(), artistFlight = new Map();
+  const searchTimes = [], artistPageTimes = [], store = storeCountry(country);
 
   function remember(cache, key, value, at, short = false) {
     cache.delete(key);
@@ -108,11 +115,11 @@ export function createMusicImagesLookup({ fetchImpl = globalThis.fetch, now = Da
     return entry.value;
   }
 
-  async function fetchWithin(url, headers, deadline) {
+  async function fetchWithin(url, headers, deadline, requestTimes, maxPerMinute) {
     const remaining = deadline - now();
     if (remaining <= 0) return null;
     while (requestTimes.length && now() - requestTimes[0] >= 60_000) requestTimes.shift();
-    if (requestTimes.length >= maxRequestsPerMinute) return null;
+    if (requestTimes.length >= maxPerMinute) return null;
     requestTimes.push(now());
     const controller = new AbortController();
     let timer, expire;
@@ -134,7 +141,7 @@ export function createMusicImagesLookup({ fetchImpl = globalThis.fetch, now = Da
     if (artistFlight.has(id)) return artistFlight.get(id);
     const promise = (async () => {
       try {
-        const fetched = await fetchWithin(page, { accept: 'text/html' }, deadline);
+        const fetched = await fetchWithin(page, { accept: 'text/html' }, deadline, artistPageTimes, maxArtistPagesPerMinute);
         if (!fetched) return null;
         const { response } = fetched;
         if (!/^text\/html\b/i.test(response.headers?.get?.('content-type') ?? '')) { fetched.close(); return null; }
@@ -169,7 +176,8 @@ export function createMusicImagesLookup({ fetchImpl = globalThis.fetch, now = Da
     const url = new URL(endpoint);
     url.searchParams.set('term', `${input.title} ${input.artist} ${input.album}`);
     url.searchParams.set('media', 'music'); url.searchParams.set('entity', 'song'); url.searchParams.set('limit', '10');
-    const fetched = await fetchWithin(url, { accept: 'application/json' }, deadline);
+    url.searchParams.set('country', store);
+    const fetched = await fetchWithin(url, { accept: 'application/json' }, deadline, searchTimes, maxSearchesPerMinute);
     if (!fetched) return null;
     const bytes = await responseBytes(fetched.response, maxResponseBytes, fetched);
     fetched.close();

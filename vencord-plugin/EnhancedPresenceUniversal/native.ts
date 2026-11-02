@@ -9,6 +9,7 @@ import { existsSync, lstatSync, readFileSync, writeFileSync, renameSync, unlinkS
 import { execFile } from "child_process";
 import { createInstalledIconLookup } from "./installed-icons.mjs";
 import { createMusicImagesLookup } from "./music-artwork.mjs";
+import { storeCountryFromStorefront } from "./music-store.mjs";
 import { controlMusic as issueMusicControl, readLocalMusicArtwork, readLocalPlayback as readPlayback, setLocalPlayerEnabled } from "./music-player.mjs";
 import type { MusicAction } from "./music-player.mjs";
 import type { LocalMusicArtworkRequest } from "./music-player.mjs";
@@ -60,8 +61,16 @@ const installedIcon = createInstalledIconLookup({
     getFileIcon: async path => (await app.getFileIcon(path, { size: "normal" })).toDataURL()
 });
 export function getInstalledAppIcon(_event: Electron.IpcMainInvokeEvent, id: string) { return process.platform === "darwin" ? installedIcon(id) : Promise.resolve(undefined); }
-const musicImages = createMusicImagesLookup();
-export function getMusicImages(_event: Electron.IpcMainInvokeEvent, input: MusicArtworkRequest) { return musicImages(input); }
+// Search the Apple Music account's store, read from this one saved key; it can differ from the Mac's region.
+function musicStoreCountry() {
+    return new Promise<string>(resolve => execFile("/usr/bin/plutil", ["-extract", "ICDefaultsKeyLastKnownLocalStoreAccountProperties.storefrontIdentifier", "raw", "-o", "-", join(homedir(), "Library", "Preferences", "com.apple.itunescloud.plist")], { timeout: 2000, maxBuffer: 1024 },
+        (error, stdout) => resolve((!error && storeCountryFromStorefront(stdout.trim())) || app.getLocaleCountryCode())));
+}
+let musicImages: Promise<ReturnType<typeof createMusicImagesLookup>> | undefined;
+export function getMusicImages(_event: Electron.IpcMainInvokeEvent, input: MusicArtworkRequest) {
+    musicImages ??= musicStoreCountry().then(country => createMusicImagesLookup({ country }));
+    return musicImages.then(lookup => lookup(input));
+}
 export function saveAgentSettings(_event: Electron.IpcMainInvokeEvent, input: AgentControl) { return updateAgent(companionRoot(), input); }
 export function openNamePermissions(_event: Electron.IpcMainInvokeEvent) {
     if (process.platform !== "darwin") return;

@@ -32,6 +32,20 @@ test('uses fixed Apple endpoints and exact normalized track identity for album a
   assert.ok(calls.every(call => call.options.signal instanceof AbortSignal));
 });
 
+test('searches the configured store and falls back to the US store for invalid countries', async () => {
+  for (const [country, expected] of [['ca', 'CA'], ['GB', 'GB'], [undefined, 'US'], ['', 'US'], ['CAN', 'US'], ['c1', 'US'], [' CA', 'US']]) {
+    const stores = [];
+    const lookup = createMusicImagesLookup({ country, fetchImpl: async url => {
+      const parsed = new URL(url);
+      if (parsed.hostname === 'itunes.apple.com') { stores.push(parsed.searchParams.get('country')); return catalog([result({ artistViewUrl: 'https://music.apple.com/ca/artist/example-artist/12345' })]); }
+      assert.equal(parsed.href, 'https://music.apple.com/ca/artist/example-artist/12345');
+      return artistPage();
+    } });
+    assert.deepEqual(await lookup(request), { albumArtworkUrl, artistArtworkUrl });
+    assert.deepEqual(stores, [expected]);
+  }
+});
+
 test('rejects non-Apple requests, extra fields and invalid metadata without fetching', async () => {
   let calls = 0;
   const lookup = createMusicImagesLookup({ fetchImpl: async () => { calls++; return catalog(); } });
@@ -173,7 +187,7 @@ test('deduplicates portrait downloads for different tracks by artist ID', async 
   ]);
 });
 
-test('caps track and artist caches at 64 entries and counts page fetches toward ten requests per minute', async () => {
+test('caps track and artist caches at 64 entries', async () => {
   let now = 0, calls = 0;
   const lookup = createMusicImagesLookup({ now: () => now, fetchImpl: async url => {
     calls++;
@@ -196,23 +210,28 @@ test('caps track and artist caches at 64 entries and counts page fetches toward 
   assert.equal(calls, 132);
 });
 
-test('limits all catalog and artist HTTP requests to ten per minute and caps bodies', async () => {
-  let now = 0, calls = 0;
+test('limits catalog searches to twenty and artist pages to ten per minute on separate budgets and caps bodies', async () => {
+  let now = 0, searches = 0, pages = 0;
   const lookup = createMusicImagesLookup({ now: () => now, fetchImpl: async url => {
-    calls++;
-    if (new URL(url).hostname !== 'itunes.apple.com') return artistPage();
+    if (new URL(url).hostname !== 'itunes.apple.com') { pages++; return artistPage(); }
+    searches++;
     const [title, artist, album] = new URL(url).searchParams.get('term').split(' ');
     const digits = title.replace(/\D/g, '');
     const artistId = digits ? Number(digits) + 100 : 999;
     return catalog([result({ trackName: title, artistName: artist, collectionName: album, artistId, artistViewUrl: `https://music.apple.com/us/artist/artist-${artistId}/${artistId}` })]);
   } });
-  for (let i = 0; i < 5; i++) await lookup({ ...request, title: `Rate${i}`, artist: `Artist${i}`, album: `Album${i}` });
-  assert.equal(calls, 10);
+  const song = i => ({ ...request, title: `Rate${i}`, artist: `Artist${i}`, album: `Album${i}` });
+  // Ten quick songs, as when skipping, all keep album art and artist photos.
+  for (let i = 0; i < 10; i++) assert.deepEqual(await lookup(song(i)), { albumArtworkUrl, artistArtworkUrl });
+  assert.equal(searches, 10); assert.equal(pages, 10);
+  // Artist pages are spent; album art continues until the search budget is spent.
+  for (let i = 10; i < 20; i++) assert.deepEqual(await lookup(song(i)), { albumArtworkUrl });
+  assert.equal(searches, 20); assert.equal(pages, 10);
   assert.deepEqual(await lookup({ ...request, title: 'RateLimited', artist: 'Limited', album: 'Limited' }), null);
-  assert.equal(calls, 10);
+  assert.equal(searches, 20);
   now += 60_001;
   assert.deepEqual(await lookup({ ...request, title: 'RateLimited', artist: 'Limited', album: 'Limited' }), { albumArtworkUrl, artistArtworkUrl });
-  assert.equal(calls, 12);
+  assert.equal(searches, 21); assert.equal(pages, 11);
 
   const huge = new Response(new Uint8Array(128 * 1024 + 1), { status: 200 });
   const limited = createMusicImagesLookup({ fetchImpl: async () => huge });
