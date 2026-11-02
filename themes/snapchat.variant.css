@@ -75,7 +75,10 @@
     background: color-mix(in srgb, var(--ep-snapchat-blue) 8%, var(--ep-snapchat-chat));
 
     & a { color: var(--text-link); }
-    & .mention { color: var(--text-link); background: color-mix(in srgb, var(--ep-snapchat-blue) 12%, transparent); }
+    & .mention {
+        color: var(--ep-snapchat-own-mention-text, var(--ep-snapchat-text)) !important;
+        background: var(--ep-snapchat-own-mention-background, color-mix(in srgb, var(--ep-snapchat-blue) 12%, transparent)) !important;
+    }
 }
 
 :root #app-mount [data-list-id="chat-messages"] > li:is([data-is-self="true"], :has([data-is-self="true"], .ep-plus-own-marker)) [class*="message_"]:not([class*="systemMessage_"]) > [class*="contents_"] > [id^="message-content-"]:has(img[class*="jumboable"]) { margin-inline: 0 auto; }

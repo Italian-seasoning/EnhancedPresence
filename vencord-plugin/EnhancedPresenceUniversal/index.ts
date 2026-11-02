@@ -7,7 +7,7 @@ import { getUserSettingLazy } from "@api/UserSettings";
 import { findByPropsLazy } from "@webpack";
 import definePlugin, { OptionType, PluginNative } from "@utils/types";
 import type { IconComponent } from "@utils/types";
-import { ChannelRTCStore, ChannelStore, FluxDispatcher, PresenceStore, React, SelectedChannelStore, UserStore, VoiceStateStore } from "@webpack/common";
+import { ChannelRTCStore, ChannelStore, FluxDispatcher, MessageStore, PresenceStore, React, SelectedChannelStore, UserStore, VoiceStateStore, useStateFromStores } from "@webpack/common";
 import type { Message } from "@vencord/discord-types";
 import { AppManager } from "./AppManager";
 import { ComposerMenu } from "./ComposerMenu";
@@ -23,6 +23,7 @@ import { createNotificationRouter, shouldShowDesktopNotification as shouldShowRu
 import { desktopNotificationPatch } from "./notifications";
 import type { NotificationRule } from "./notification-rules.mjs";
 import suiteStyle from "./suite.css?managed";
+import { isRepeatedAuthor } from "./message-layout.mjs";
 
 // Run before Vencord applies enabled plugins' patches. Keep the user's filters.
 fixActivityFilter(IgnoreActivities);
@@ -201,6 +202,15 @@ function notificationAllowed(message: unknown) {
         getChannel: id => ChannelStore.getChannel(id), currentUserId: userId
     });
 }
+
+function RepeatAuthorMarker({ message }: { message: Message }) {
+    const repeated = useStateFromStores([MessageStore, UserStore, ChannelStore], () => {
+        const userId = UserStore.getCurrentUser()?.id;
+        if (!userId || message.author?.id === userId || !ChannelStore.getChannel(message.channel_id)?.guild_id) return false;
+        return isRepeatedAuthor(MessageStore.getMessages(message.channel_id)?._array, message);
+    });
+    return repeated ? React.createElement("span", { className: "ep-plus-repeat-author", "aria-hidden": true }) : null;
+}
 export default definePlugin({
     name: "EnhancedPresenceUniversal",
     description: "Shares allowed apps and compatible music, with delayed app switching and local app-time totals.",
@@ -212,8 +222,11 @@ export default definePlugin({
     chatBarButton: { icon: PlusIcon, render: PlusChatButton },
     contextMenus: { message: collectionContextMenu.message },
     renderMessageAccessory({ message }: Record<string, any>) {
-        if (message?.author?.id !== UserStore.getCurrentUser()?.id) return null;
-        return React.createElement("span", { className: "ep-plus-own-marker", "aria-hidden": true });
+        const userId = UserStore.getCurrentUser()?.id;
+        if (!message || !userId) return null;
+        if (message.author?.id === userId) return React.createElement("span", { className: "ep-plus-own-marker", "aria-hidden": true });
+        if (!ChannelStore.getChannel(message.channel_id)?.guild_id) return null;
+        return React.createElement(RepeatAuthorMarker, { message });
     },
     shouldShowDesktopNotification: notificationAllowed,
     flux: {

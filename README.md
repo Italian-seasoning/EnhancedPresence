@@ -58,7 +58,7 @@ For native macOS glass, set **Vencord → MacOS Window vibrancy style → Sideba
 
 Open **Presence+ → Appearance** in a DM to choose a background for that chat. Presets and normalized local photos stay in this Mac’s account-scoped storage and are separate from public presence. They apply with either optional theme enabled.
 
-Blue outgoing bubbles use Plus's hidden self-message marker or Vencord's built-in **ThemeAttributes** plugin. The theme can be used without the companion by enabling ThemeAttributes. Installation never changes your theme selection.
+Blue outgoing bubbles use Plus's hidden self-message marker or Vencord's built-in **ThemeAttributes** plugin. The theme can be used without the companion by enabling ThemeAttributes. Installation never changes your theme selection. Plus also groups consecutive server posts from the same sender under one avatar while keeping sender names and keyboard profile access; system messages, day boundaries and different senders keep their identities.
 
 With Plus, the composer's **+** menu groups the existing Discord and plugin actions. Turning off Messages restores the original buttons.
 
