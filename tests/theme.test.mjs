@@ -23,6 +23,16 @@ test('Messages is a standalone local theme without other themes option overrides
   assert.match(css, /forced-colors/);
 });
 
+test('Snapchat ships a current self-contained variant with independent tokens and accessibility fallbacks', async () => {
+  const { snapchatTheme } = await import('../scripts/build-snapchat-theme.mjs');
+  const css = read('themes/PresenceSnapchat.theme.css');
+  assert.equal(css, snapchatTheme(), 'Run npm run build:themes after changing either theme source');
+  assert.match(css, /@name Snapchat for Discord/);
+  assert.match(css, /--ep-snapchat-yellow:\s*#fffc00/i);
+  assert.doesNotMatch(css, /--ep-messages-|@import\b|url\s*\(/i);
+  for (const boundary of ['prefers-reduced-transparency', 'prefers-reduced-motion', 'forced-colors', 'data-ep-dm-wallpaper', 'data-ep-composer-ready']) assert.ok(css.includes(boundary), boundary);
+});
+
 test('high-contrast Messages blue keeps outgoing white text at WCAG AA contrast', () => {
   const css = read('themes/PresenceMessages.theme.css');
   const highContrastBlue = css.match(/--ep-messages-blue-high-contrast:\s*(#[0-9a-f]{6})/i)?.[1];

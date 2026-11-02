@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "build:themes": "node scripts/build-snapchat-theme.mjs",
     "test": "node --test tests/*.test.mjs",
     "preview": "node presence-engine/main.mjs",
     "pair": "node presence-engine/pair.mjs",

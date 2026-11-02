@@ -958,10 +958,10 @@ body {
     position: relative;
     width: fit-content;
     max-width: min(70%, 520px);
-    padding: 3px 9px;
-    margin-block: 6px 7px;
+    padding: 4px 10px;
+    margin-block: 6px 14px;
     border: 1px solid var(--ep-messages-border);
-    border-radius: 15px;
+    border-radius: 15px 15px 15px 5px;
     background: transparent;
     color: var(--ep-messages-muted);
     font: 12px/1.4 var(--font-primary);
@@ -973,31 +973,32 @@ body {
     }
 }
 /*
- * One curved line from the quote down to the reply (a ╭ on the left, ╮ for your own replies),
+ * A short curved line below the quote, mirrored for your own replies,
  * drawn on Discord's existing clickable spine so its expanded hit target is preserved.
  */
 #app-mount [data-list-id="chat-messages"] [class*="repliedMessage_"] > [class*="repliedMessageClickableSpine_"] {
-    left: -14px;
+    left: 8px;
     right: auto;
-    top: 50%;
-    bottom: -22px;
-    width: 14px;
+    top: calc(100% + 2px);
+    bottom: -12px;
+    width: 12px;
     height: auto;
     border-style: solid;
-    border-width: 2px 0 0 2px;
-    border-radius: 12px 0 0 0;
+    border-width: 0 0 2px 2px;
+    border-radius: 0 0 0 12px;
     border-color: var(--ep-messages-border);
 }
 #app-mount [data-list-id="chat-messages"] :is([data-is-self="true"], li:has(.ep-plus-own-marker)) [class*="message_"] > [class*="repliedMessage_"],
 #app-mount [data-list-id="chat-messages"] [data-is-self="true"][class*="message_"] > [class*="repliedMessage_"] {
     margin-left: auto;
     margin-right: 0;
+    border-radius: 15px 15px 5px 15px;
 
     & > [class*="repliedMessageClickableSpine_"] {
         left: auto;
-        right: -14px;
-        border-width: 2px 2px 0 0;
-        border-radius: 0 12px 0 0;
+        right: 8px;
+        border-width: 0 2px 2px 0;
+        border-radius: 0 0 12px 0;
     }
 }
 #app-mount [data-list-id="chat-messages"] [class*="repliedMessage_"]:is(:hover, :focus-within) {
@@ -1039,7 +1040,23 @@ body {
  */
 :root:is([data-ep-direct-message], [data-ep-group-message]) #app-mount [data-list-id="chat-messages"] > li:has([class*="reactions_"] [class*="reaction_"]):has([class*="contents_"] > [id^="message-content-"] [class*="markup_"], [class*="contents_"] > [id^="message-content-"][class*="markup_"]:not(:empty)) {
     & [id^="message-accessories-"] { position: static; }
-    & [class*="message_"] > [class*="contents_"] > [id^="message-content-"] { margin-top: 16px; }
+    & [class*="message_"] > [class*="contents_"] > [id^="message-content-"] {
+        margin-top: 20px;
+
+        &::after {
+            content: "";
+            position: absolute;
+            top: -5px;
+            right: -3px;
+            width: 6px;
+            height: 6px;
+            border: 2px solid var(--ep-messages-chat);
+            border-radius: 50%;
+            background: var(--ep-messages-incoming);
+            box-shadow: 3px 5px 0 -2px var(--ep-messages-incoming);
+            pointer-events: none;
+        }
+    }
 
     & [class*="reactions_"] {
         position: absolute;
@@ -1052,11 +1069,14 @@ body {
         flex-wrap: nowrap;
         align-items: center;
         gap: 2px;
-        max-width: 160px;
-        min-height: 24px;
+        max-width: min(220px, 45vw);
+        min-height: 28px;
         margin: 0;
-        padding: 2px 7px;
-        overflow: hidden;
+        padding: 2px 4px;
+        overflow-x: auto;
+        overflow-y: hidden;
+        scrollbar-width: thin;
+        scrollbar-color: var(--ep-messages-muted) transparent;
         border: 2px solid var(--ep-messages-chat);
         border-radius: 999px;
         color: var(--ep-messages-text);
@@ -1064,9 +1084,6 @@ body {
         box-shadow: none;
         translate: -14px -62%;
     }
-
-    /* Like Messages, the Tapback turns blue once you have reacted. */
-    & [class*="reactions_"]:has([class*="reactionMe_"]) { color: #fff; background: var(--ep-messages-blue); }
 
     & [class*="reactions_"] :is([class*="reaction_"], [class*="reactionInner_"]) {
         min-width: 0;
@@ -1083,6 +1100,11 @@ body {
         backdrop-filter: none;
     }
 
+    & [class*="reactions_"] [class*="reaction_"] { flex: 0 0 auto; min-width: 24px; min-height: 24px; }
+    & [class*="reactions_"] [class*="reactionInner_"] { padding: 4px; }
+    & [class*="reactions_"] [class*="reactionMe_"] { color: #fff; background: var(--ep-messages-blue); }
+    & [class*="reactions_"] [class*="reaction_"]:focus-within { outline: 2px solid var(--ep-messages-blue); outline-offset: -2px; }
+
     & [class*="reactions_"] [class*="reaction_"] img[class*="emoji"] { width: 16px; height: 16px; }
     & [class*="reactions_"] [class*="reactionCount_"] { min-width: 0; margin: 0; color: inherit; font: 600 11px/1 var(--font-primary); }
     & [class*="reactions_"] [class*="reactionBtn_"],
@@ -1092,7 +1114,13 @@ body {
     &:is([data-is-self="true"], :has([data-is-self="true"], .ep-plus-own-marker)) [class*="reactions_"] {
         left: auto;
         right: anchor(left);
-        translate: 16px -72%;
+        translate: 16px -62%;
+    }
+
+    &:is([data-is-self="true"], :has([data-is-self="true"], .ep-plus-own-marker)) [class*="contents_"] > [id^="message-content-"]::after {
+        right: auto;
+        left: -3px;
+        box-shadow: -3px 5px 0 -2px var(--ep-messages-incoming);
     }
 }
 
@@ -1311,6 +1339,7 @@ body {
     #app-mount [data-list-id="chat-messages"] [class*="reactions_"],
     #app-mount [data-list-id="chat-messages"] article[class*="embedFull_"] { color: CanvasText; background: Canvas; border-color: CanvasText; box-shadow: none; }
     #app-mount [data-list-id="chat-messages"] [class*="reactionMe_"] { outline: 2px solid Highlight; outline-offset: -2px; }
+    #app-mount [data-list-id="chat-messages"] [id^="message-content-"]::after { display: none; }
     :root[data-ep-direct-message] #app-mount [data-list-id="chat-messages"] [class*="message_"][class*="mentioned_"] > [class*="contents_"] > [id^="message-content-"]:not(:empty) { outline: 1px solid Highlight; box-shadow: none; }
     #app-mount [data-list-id="chat-messages"] [class*="repliedMessageClickableSpine_"] { border-color: CanvasText; }
     #app-mount [class*="sidebarList_"]:has([class*="privateChannels_"]) { background: Canvas; }
