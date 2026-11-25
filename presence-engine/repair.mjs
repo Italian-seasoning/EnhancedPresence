@@ -112,7 +112,7 @@ async function main() {
       if (hash !== expected) throw Error("Managed build integrity check failed");
     }
     if (!manifest["loader.asar"] || !manifest["renderer.js"] || !manifest["patcher.js"]) throw Error("Incomplete managed build");
-    const resources = process.env.ENHANCED_PRESENCE_RESOURCES || "/Applications/Discord.app/Contents/Resources";
+    const resources = await resolveDiscordResources(process.env.ENHANCED_PRESENCE_RESOURCES || "/Applications/Discord.app/Contents/Resources", home);
     // shortcut: waits for recent updater writes, increase the delay if Discord changes its update process.
     if (!(await exists(resources)) || Date.now() - (await stat(resources)).mtimeMs < 30000) return;
     for (const name of ["app.asar", "_app.asar"]) {
@@ -125,3 +125,18 @@ async function main() {
   } finally { await rm(lock, { recursive: true, force: true }); }
 }
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) main().catch(e => { console.error(`EnhancedPresence repair: ${e.message}`); process.exitCode = 1; });
+
+// New Discord launchers keep Electron in a versioned Application Support directory.
+export async function resolveDiscordResources(preferred, home = homedir()) {
+  const ready = async p => p && (await exists(join(p, "app.asar")) || await exists(join(p, "_app.asar")));
+  if (await ready(preferred)) return preferred;
+  const base = join(home, "Library/Application Support/discord");
+  let entries = [];
+  try { entries = await readdir(base); } catch (e) { if (e.code !== "ENOENT") throw e; }
+  const versions = entries.filter(n => /^app-\d+(?:\.\d+)*$/.test(n)).sort((a, b) => b.localeCompare(a, undefined, { numeric: true }));
+  for (const version of versions) {
+    const candidate = join(base, version, "Discord.app/Contents/Resources");
+    if (await ready(candidate)) return candidate;
+  }
+  throw Error("Discord application archive was not found; open Discord once to finish installation.");
+}

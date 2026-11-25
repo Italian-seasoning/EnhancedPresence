@@ -4,7 +4,7 @@ import { cpSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, re
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { repair } from '../presence-engine/repair.mjs';
+import { repair, resolveDiscordResources } from '../presence-engine/repair.mjs';
 
 // Installs a built Vencord (dist/) as a managed copy and points Discord at it, without the
 // interactive Vencord installer. A small background agent re-applies it after Discord updates.
@@ -37,6 +37,7 @@ export function stage({ dist, managed, patcher }) {
 }
 
 export async function deploy(checkout, { home = homedir(), resources = '/Applications/Discord.app/Contents/Resources', start = true, nodePath } = {}) {
+  resources = await resolveDiscordResources(resources, home);
   const root = join(home, 'Library', 'Application Support', 'EnhancedPresence'), maintenance = join(root, 'maintenance');
   const dist = join(home, 'Library', 'Application Support', 'Vencord', 'dist');
   const files = stage({ dist: join(checkout, 'dist'), managed: join(maintenance, 'managed'), patcher: join(dist, 'patcher.js') });
